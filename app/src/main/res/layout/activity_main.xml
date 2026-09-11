@@ -1,0 +1,255 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#000000">
+
+    <!-- КРУПНЫЙ ДИСПЛЕЙ МАТРИЦЫ (Клик по экрану по-прежнему скрывает/показывает пульт) -->
+    <com.example.glyphvisualizer.GlyphPreviewView
+        android:id="@+id/glyphPreview"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:layout_centerInParent="true" />
+
+    <!-- АККУРАТНАЯ ПАНЕЛЬ УПРАВЛЕНИЯ В СТИЛЕ NOTHING OS -->
+    <LinearLayout
+        android:id="@+id/controlsPanel"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_alignParentBottom="true"
+        android:orientation="vertical"
+        android:gravity="center_horizontal"
+        android:paddingStart="16dp"
+        android:paddingEnd="16dp"
+        android:paddingTop="14dp"
+        android:paddingBottom="42dp"
+        android:background="#F2080808">
+
+        <!-- Название активного узора -->
+        <TextView
+            android:id="@+id/patternNameText"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="GLYPH MATRIX EMULATOR"
+            android:textColor="#00FFCC"
+            android:textSize="13sp"
+            android:textStyle="bold"
+            android:letterSpacing="0.08"
+            android:gravity="center" />
+
+        <!-- Статус обученной базы знаний -->
+        <TextView
+            android:id="@+id/statusText"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:text="База знаний: 0 треков"
+            android:textColor="#888888"
+            android:textSize="11sp" />
+
+        <!-- Блок телеметрии и частот -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:orientation="horizontal">
+
+            <TextView
+                android:id="@+id/freqStatsText"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="САБ: 0 | ВОББЛ: 0 | ВЕРХ: 0"
+                android:textColor="#777777"
+                android:textSize="10sp"
+                android:fontFamily="monospace" />
+
+            <TextView
+                android:id="@+id/tensionValText"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="0.00"
+                android:textColor="#00FFCC"
+                android:textSize="11sp"
+                android:textStyle="bold"
+                android:fontFamily="monospace" />
+        </LinearLayout>
+
+        <!-- Полоса напряжения (Tension) -->
+        <ProgressBar
+            android:id="@+id/progressTension"
+            style="?android:attr/progressBarStyleHorizontal"
+            android:layout_width="match_parent"
+            android:layout_height="4dp"
+            android:layout_marginTop="3dp"
+            android:max="100"
+            android:progress="0"
+            android:progressTint="#00FFCC" />
+
+        <!-- РЯД 1: Навигация узоров [ ◀ ] [ СЦЕНАРИЙ ] [ ▶ ] -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:orientation="horizontal"
+            android:gravity="center">
+
+            <Button
+                android:id="@+id/btnPrevPattern"
+                android:layout_width="48dp"
+                android:layout_height="40dp"
+                android:text="◀"
+                android:textSize="13sp"
+                android:textColor="#FFFFFF"
+                android:backgroundTint="#1C1C1C"
+                android:insetTop="0dp"
+                android:insetBottom="0dp"
+                android:padding="0dp"
+                app:cornerRadius="12dp" />
+
+            <Button
+                android:id="@+id/btnAutoPattern"
+                android:layout_width="0dp"
+                android:layout_height="40dp"
+                android:layout_weight="1"
+                android:layout_marginStart="8dp"
+                android:layout_marginEnd="8dp"
+                android:text="СЦЕНАРИЙ"
+                android:textSize="11sp"
+                android:textStyle="bold"
+                android:letterSpacing="0.05"
+                android:textColor="#000000"
+                android:backgroundTint="#00FFCC"
+                android:insetTop="0dp"
+                android:insetBottom="0dp"
+                app:cornerRadius="12dp" />
+
+            <Button
+                android:id="@+id/btnNextPattern"
+                android:layout_width="48dp"
+                android:layout_height="40dp"
+                android:text="▶"
+                android:textSize="13sp"
+                android:textColor="#FFFFFF"
+                android:backgroundTint="#1C1C1C"
+                android:insetTop="0dp"
+                android:insetBottom="0dp"
+                android:padding="0dp"
+                app:cornerRadius="12dp" />
+        </LinearLayout>
+
+        <!-- РЯД 2: Главные кнопки [ СТАРТ / ВЫКЛЮЧИТЬ ] и [ БЕЗ ЗВУКА ] -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:orientation="horizontal"
+            android:gravity="center">
+
+            <Button
+                android:id="@+id/btnToggle"
+                android:layout_width="0dp"
+                android:layout_height="42dp"
+                android:layout_weight="1"
+                android:text="СТАРТ"
+                android:textStyle="bold"
+                android:textSize="12sp"
+                android:letterSpacing="0.05"
+                android:textColor="#000000"
+                android:backgroundTint="#FFFFFF"
+                android:insetTop="0dp"
+                android:insetBottom="0dp"
+                app:cornerRadius="12dp" />
+
+            <Button
+                android:id="@+id/btnSilentMode"
+                android:layout_width="0dp"
+                android:layout_height="42dp"
+                android:layout_weight="1"
+                android:layout_marginStart="8dp"
+                android:text="БЕЗ ЗВУКА: ВЫКЛ"
+                android:textSize="10sp"
+                android:textStyle="bold"
+                android:textColor="#CCCCCC"
+                android:backgroundTint="#1A1A1A"
+                android:insetTop="0dp"
+                android:insetBottom="0dp"
+                app:cornerRadius="12dp" />
+        </LinearLayout>
+
+        <!-- РЯД 3: Источники звука и папки [ ПРИЛОЖЕНИЯ ] [ ФАЙЛЫ ] [ ПАПКА ] -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:orientation="horizontal"
+            android:gravity="center">
+
+            <Button
+                android:id="@+id/btnSelectApps"
+                android:layout_width="0dp"
+                android:layout_height="38dp"
+                android:layout_weight="1.2"
+                android:text="ПРИЛОЖЕНИЯ"
+                android:textSize="10sp"
+                android:maxLines="1"
+                android:ellipsize="none"
+                android:textColor="#00FFCC"
+                android:backgroundTint="#142622"
+                android:insetTop="0dp"
+                android:insetBottom="0dp"
+                android:paddingStart="4dp"
+                android:paddingEnd="4dp"
+                app:cornerRadius="10dp" />
+
+            <Button
+                android:id="@+id/btnPickFiles"
+                android:layout_width="0dp"
+                android:layout_height="38dp"
+                android:layout_weight="0.9"
+                android:layout_marginStart="6dp"
+                android:text="ФАЙЛЫ"
+                android:textSize="10sp"
+                android:maxLines="1"
+                android:textColor="#DDDDDD"
+                android:backgroundTint="#1C1C1C"
+                android:insetTop="0dp"
+                android:insetBottom="0dp"
+                android:paddingStart="4dp"
+                android:paddingEnd="4dp"
+                app:cornerRadius="10dp" />
+
+            <Button
+                android:id="@+id/btnPickFolder"
+                android:layout_width="0dp"
+                android:layout_height="38dp"
+                android:layout_weight="0.9"
+                android:layout_marginStart="6dp"
+                android:text="ПАПКА"
+                android:textSize="10sp"
+                android:maxLines="1"
+                android:textColor="#DDDDDD"
+                android:backgroundTint="#1C1C1C"
+                android:insetTop="0dp"
+                android:insetBottom="0dp"
+                android:paddingStart="4dp"
+                android:paddingEnd="4dp"
+                app:cornerRadius="10dp" />
+        </LinearLayout>
+
+        <!-- Текст прогресса анализа треков (приподнят с безопасным отступом) -->
+        <TextView
+            android:id="@+id/trainingProgressText"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:text=""
+            android:textColor="#00FFCC"
+            android:textSize="10sp"
+            android:fontFamily="monospace"
+            android:gravity="center" />
+
+    </LinearLayout>
+
+</RelativeLayout>
