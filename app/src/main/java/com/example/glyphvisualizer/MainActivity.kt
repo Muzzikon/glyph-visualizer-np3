@@ -44,30 +44,22 @@ class MainActivity : AppCompatActivity() {
     private lateinit var patternNameText: TextView
     private lateinit var tensionValText: TextView
     private lateinit var freqStatsText: TextView
+    private lateinit var debugDataText: TextView // НОВОЕ ТЕКСТОВОЕ ПОЛЕ ДЛЯ ТЕЛЕМЕТРИИ
     private lateinit var progressTension: ProgressBar
     private lateinit var glyphPreview: GlyphPreviewView
     private lateinit var controlsPanel: View
 
-    private val pickAudioFilesLauncher = registerForActivityResult(
-        ActivityResultContracts.OpenMultipleDocuments()
-    ) { uris: List<Uri>? ->
+    private val pickAudioFilesLauncher = registerForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris: List<Uri>? ->
         if (!uris.isNullOrEmpty()) processTrackUrisStreamingSafe(uris)
     }
 
-    private val pickFolderLauncher = registerForActivityResult(
-        ActivityResultContracts.OpenDocumentTree()
-    ) { treeUri: Uri? ->
+    private val pickFolderLauncher = registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { treeUri: Uri? ->
         if (treeUri != null) scanFolderStreamingSafe(treeUri)
     }
 
-    private val requestPermissionsLauncher = registerForActivityResult(
-        ActivityResultContracts.RequestMultiplePermissions()
-    ) { permissions ->
-        if (permissions[Manifest.permission.RECORD_AUDIO] == true) {
-            toggleService()
-        } else {
-            Toast.makeText(this, "Требуется доступ к аудио", Toast.LENGTH_LONG).show()
-        }
+    private val requestPermissionsLauncher = registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { permissions ->
+        if (permissions[Manifest.permission.RECORD_AUDIO] == true) toggleService()
+        else Toast.makeText(this, "Audio permission is required", Toast.LENGTH_LONG).show()
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -87,6 +79,7 @@ class MainActivity : AppCompatActivity() {
         patternNameText = findViewById(R.id.patternNameText)
         tensionValText = findViewById(R.id.tensionValText)
         freqStatsText = findViewById(R.id.freqStatsText)
+        debugDataText = findViewById(R.id.debugDataText) // ИНИЦИАЛИЗАЦИЯ
         progressTension = findViewById(R.id.progressTension)
         glyphPreview = findViewById(R.id.glyphPreview)
         controlsPanel = findViewById(R.id.controlsPanel)
@@ -97,20 +90,9 @@ class MainActivity : AppCompatActivity() {
         btnPickFiles.setOnClickListener { pickAudioFilesLauncher.launch(arrayOf("audio/*")) }
         btnPickFolder.setOnClickListener { pickFolderLauncher.launch(null) }
 
-        btnSilentMode.setOnClickListener {
-            isSilentDemoMode = !isSilentDemoMode
-            if (isSilentDemoMode) {
-                btnSilentMode.text = "БЕЗ ЗВУКА: ВКЛ"
-                btnSilentMode.setBackgroundColor(getColor(android.R.color.holo_green_dark))
-            } else {
-                btnSilentMode.text = "БЕЗ ЗВУКА: ВЫКЛ"
-                btnSilentMode.setBackgroundColor(getColor(android.R.color.darker_gray))
-            }
-            sendServiceAction("TOGGLE_SILENT_MODE", isSilentDemoMode)
-        }
+        btnSilentMode.visibility = View.GONE
 
         btnSelectApps.setOnClickListener { showSupportedAppsDialog() }
-
         glyphPreview.setOnClickListener {
             controlsPanel.visibility = if (controlsPanel.visibility == View.VISIBLE) View.GONE else View.VISIBLE
         }
@@ -122,22 +104,22 @@ class MainActivity : AppCompatActivity() {
             testModeState = (testModeState + 1) % 3
             when (testModeState) {
                 0 -> {
-                    btnAutoPattern.text = "АВТО"
+                    btnAutoPattern.text = "AUTO"
                     btnAutoPattern.setBackgroundColor(getColor(android.R.color.holo_blue_bright))
                     sendServiceAction("MODE_AUTO")
-                    Toast.makeText(this, "Режим: Умный Авто-Анализ", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this, "Mode: Smart Auto-Analysis", Toast.LENGTH_SHORT).show()
                 }
                 1 -> {
-                    btnAutoPattern.text = "ТЕСТ: СПОКОЙНЫЙ"
+                    btnAutoPattern.text = "TEST: CALM"
                     btnAutoPattern.setBackgroundColor(getColor(android.R.color.holo_green_light))
                     sendServiceAction("MODE_FORCE_CALM")
-                    Toast.makeText(this, "Тест: Спокойный арсенал", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this, "Test: Calm Arsenal", Toast.LENGTH_SHORT).show()
                 }
                 2 -> {
-                    btnAutoPattern.text = "ТЕСТ: ДРОП"
+                    btnAutoPattern.text = "TEST: DROP"
                     btnAutoPattern.setBackgroundColor(getColor(android.R.color.holo_red_light))
                     sendServiceAction("MODE_FORCE_DROP")
-                    Toast.makeText(this, "Тест: Боевой дроп", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this, "Test: Combat Drop", Toast.LENGTH_SHORT).show()
                 }
             }
         }
@@ -146,17 +128,21 @@ class MainActivity : AppCompatActivity() {
             val prefs = getSharedPreferences("glyph_profile", Context.MODE_PRIVATE)
             prefs.edit().clear().apply()
             loadProfileInfo()
-            Toast.makeText(this, "База знаний очищена", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "Knowledge Base Cleared", Toast.LENGTH_SHORT).show()
             true
         }
 
-        GlyphVisualizerService.liveFrameListener = { frame, patternName, tension, b, m, h ->
+        // --- ПЕРЕДАЕМ ТЕЛЕМЕТРИЮ ИЗ SERVICE В UI ---
+        GlyphVisualizerService.liveFrameListener = { frame, patternName, tension, b, m, h, telemetry ->
             runOnUiThread {
                 glyphPreview.updateLeds(frame)
                 patternNameText.text = patternName
                 tensionValText.text = String.format("%.2f", tension)
                 progressTension.progress = (tension * 100).toInt().coerceIn(0, 100)
-                freqStatsText.text = "САБ: ${b.toInt()} | ВОББЛ: ${m.toInt()} | ВЕРХ: ${h.toInt()}"
+                freqStatsText.text = "SUB: ${b.toInt()} | GROWL: ${m.toInt()} | HIGH: ${h.toInt()}"
+
+                // ВЫВОДИМ ОТЛАДОЧНУЮ ИНФУ НА ЭКРАН
+                debugDataText.text = telemetry
             }
         }
     }
@@ -167,73 +153,53 @@ class MainActivity : AppCompatActivity() {
         val resolved = pm.queryIntentActivities(mainIntent, 0)
         data class AppEntry(val name: String, val packageName: String)
 
-        val installedApps = resolved.map {
-            AppEntry(it.loadLabel(pm).toString(), it.activityInfo.packageName)
-        }.distinctBy { it.packageName }
-            .filter { it.packageName != packageName }
-            .sortedBy { it.name.lowercase() }
+        val installedApps = resolved.map { AppEntry(it.loadLabel(pm).toString(), it.activityInfo.packageName) }
+            .distinctBy { it.packageName }.filter { it.packageName != packageName }.sortedBy { it.name.lowercase() }
 
-        if (installedApps.isEmpty()) {
-            Toast.makeText(this, "Приложения не найдены", Toast.LENGTH_SHORT).show()
-            return
-        }
+        if (installedApps.isEmpty()) { Toast.makeText(this, "No apps found", Toast.LENGTH_SHORT).show(); return }
 
         val appNames = installedApps.map { it.name }.toTypedArray()
         val prefs = getSharedPreferences("glyph_profile", Context.MODE_PRIVATE)
         val selectedPackages = prefs.getStringSet("whitelisted_apps", mutableSetOf())?.toMutableSet() ?: mutableSetOf()
 
-        val checkedItems = BooleanArray(installedApps.size) { i ->
-            selectedPackages.contains(installedApps[i].packageName)
-        }
+        val checkedItems = BooleanArray(installedApps.size) { i -> selectedPackages.contains(installedApps[i].packageName) }
 
-        AlertDialog.Builder(this)
-            .setTitle("Белый список плееров")
+        AlertDialog.Builder(this).setTitle("Player Whitelist")
             .setMultiChoiceItems(appNames, checkedItems) { _, which, isChecked ->
                 val pkg = installedApps[which].packageName
                 if (isChecked) selectedPackages.add(pkg) else selectedPackages.remove(pkg)
-            }
-            .setPositiveButton("Сохранить") { _, _ ->
+            }.setPositiveButton("Save") { _, _ ->
                 prefs.edit().putStringSet("whitelisted_apps", selectedPackages).apply()
                 sendServiceAction("RELOAD_APPS")
                 checkNotificationListenerPermission()
-                Toast.makeText(this, "Выбрано: ${selectedPackages.size}", Toast.LENGTH_SHORT).show()
-            }
-            .setNeutralButton("Сбросить все") { _, _ ->
+                Toast.makeText(this, "Selected: ${selectedPackages.size}", Toast.LENGTH_SHORT).show()
+            }.setNeutralButton("Reset All") { _, _ ->
                 prefs.edit().remove("whitelisted_apps").apply()
                 sendServiceAction("RELOAD_APPS")
-                Toast.makeText(this, "Фильтр отключен", Toast.LENGTH_SHORT).show()
-            }
-            .setNegativeButton("Отмена", null)
-            .show()
+                Toast.makeText(this, "Filter disabled", Toast.LENGTH_SHORT).show()
+            }.setNegativeButton("Cancel", null).show()
     }
 
     private fun checkNotificationListenerPermission() {
         val enabledListeners = Settings.Secure.getString(contentResolver, "enabled_notification_listeners")
         if (enabledListeners == null || !enabledListeners.contains(packageName)) {
-            AlertDialog.Builder(this)
-                .setTitle("Доступ к уведомлениям")
-                .setMessage("Разрешите доступ к уведомлениям, чтобы определять играющий медиаплеер.")
-                .setPositiveButton("Включить") { _, _ -> startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)) }
-                .setNegativeButton("Позже", null)
-                .show()
+            AlertDialog.Builder(this).setTitle("Notification Access")
+                .setMessage("Please grant notification access to detect the active media player.")
+                .setPositiveButton("Enable") { _, _ -> startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)) }
+                .setNegativeButton("Later", null).show()
         }
     }
 
     private fun scanFolderStreamingSafe(treeUri: Uri) {
-        btnPickFiles.isEnabled = false
-        btnPickFolder.isEnabled = false
-        trainingProgressText.text = "Потоковый поиск медиафайлов..."
+        btnPickFiles.isEnabled = false; btnPickFolder.isEnabled = false
+        trainingProgressText.text = "Scanning for media files..."
 
         thread {
             val audioUris = mutableListOf<Uri>()
             try {
                 val docId = DocumentsContract.getTreeDocumentId(treeUri)
                 val childrenUri = DocumentsContract.buildChildDocumentsUriUsingTree(treeUri, docId)
-                val projection = arrayOf(
-                    DocumentsContract.Document.COLUMN_DOCUMENT_ID,
-                    DocumentsContract.Document.COLUMN_MIME_TYPE,
-                    DocumentsContract.Document.COLUMN_DISPLAY_NAME
-                )
+                val projection = arrayOf(DocumentsContract.Document.COLUMN_DOCUMENT_ID, DocumentsContract.Document.COLUMN_MIME_TYPE, DocumentsContract.Document.COLUMN_DISPLAY_NAME)
 
                 contentResolver.query(childrenUri, projection, null, null, null)?.use { cursor ->
                     val idCol = cursor.getColumnIndexOrThrow(DocumentsContract.Document.COLUMN_DOCUMENT_ID)
@@ -243,224 +209,120 @@ class MainActivity : AppCompatActivity() {
                     while (cursor.moveToNext()) {
                         val mime = cursor.getString(mimeCol) ?: ""
                         val name = cursor.getString(nameCol)?.lowercase() ?: ""
-                        if (mime.startsWith("audio/") || name.endsWith(".mp3") || name.endsWith(".wav") ||
-                            name.endsWith(".flac") || name.endsWith(".m4a") || name.endsWith(".ogg")) {
-                            val fileDocId = cursor.getString(idCol)
-                            val fileUri = DocumentsContract.buildDocumentUriUsingTree(treeUri, fileDocId)
+                        if (mime.startsWith("audio/") || name.endsWith(".mp3") || name.endsWith(".wav") || name.endsWith(".flac") || name.endsWith(".m4a") || name.endsWith(".ogg")) {
+                            val fileUri = DocumentsContract.buildDocumentUriUsingTree(treeUri, cursor.getString(idCol))
                             audioUris.add(fileUri)
                         }
                     }
                 }
-            } catch (e: Exception) {
-                e.printStackTrace()
-            }
+            } catch (e: Exception) { e.printStackTrace() }
 
-            if (audioUris.isNotEmpty()) {
-                processTrackUrisStreamingSafe(audioUris)
-            } else {
-                runOnUiThread {
-                    btnPickFiles.isEnabled = true
-                    btnPickFolder.isEnabled = true
-                    trainingProgressText.text = "Аудиофайлы не найдены"
-                }
-            }
+            if (audioUris.isNotEmpty()) processTrackUrisStreamingSafe(audioUris)
+            else runOnUiThread { btnPickFiles.isEnabled = true; btnPickFolder.isEnabled = true; trainingProgressText.text = "No audio files found" }
         }
     }
 
-    // =========================================================================================
-    // НАДЁЖНЫЙ И ТОЧНЫЙ MIR DSP ДВИЖОК ОБУЧЕНИЯ (1024 FFT + ВЕЛФОРД)
-    // =========================================================================================
-
     private class WelfordAccumulator {
-        var count = 0.0
-        var mean = 0.0
-        var m2 = 0.0
-
+        var count = 0.0; var mean = 0.0; var m2 = 0.0
         fun update(value: Double) {
             count += 1.0
             val delta = value - mean
             mean += delta / count
-            val delta2 = value - mean
-            m2 += delta * delta2
+            m2 += delta * (value - mean)
         }
-
         fun getVariance(): Double = if (count > 1) m2 / (count - 1) else 0.0
         fun getStdDev(): Double = sqrt(max(0.0, getVariance()))
     }
 
-    private data class TrackSpectralProfile(
-        val peakSub: Float,
-        val floorSub: Float,
-        val growlRatio: Float
-    )
+    private data class TrackSpectralProfile(val peakSub: Float, val floorSub: Float, val growlRatio: Float)
 
     private fun processTrackUrisStreamingSafe(uris: List<Uri>) {
-        btnPickFiles.isEnabled = false
-        btnPickFolder.isEnabled = false
-
+        btnPickFiles.isEnabled = false; btnPickFolder.isEnabled = false
         thread {
             val prefs = getSharedPreferences("glyph_profile", Context.MODE_PRIVATE)
-
-            // Загружаем существующую базу, если она есть
-            val subPeakStat = WelfordAccumulator().apply {
-                count = prefs.getInt("trained_tracks_count", 0).toDouble()
-                mean = prefs.getFloat("stat_mean_peak", 28f).toDouble()
-                m2 = prefs.getFloat("stat_m2_peak", 64f).toDouble()
-            }
-            val subFloorStat = WelfordAccumulator().apply {
-                count = subPeakStat.count
-                mean = prefs.getFloat("stat_mean_floor", 2.2f).toDouble()
-                m2 = prefs.getFloat("stat_m2_floor", 4.0f).toDouble()
-            }
-            val growlStat = WelfordAccumulator().apply {
-                count = subPeakStat.count
-                mean = prefs.getFloat("stat_mean_growl", 1.0f).toDouble()
-                m2 = prefs.getFloat("stat_m2_growl", 0.5f).toDouble()
-            }
-
-            val checkpointsFractions = doubleArrayOf(
-                0.05, 0.12, 0.18, 0.25, 0.32, 0.40, 0.48, 0.55, 0.62, 0.70, 0.78, 0.84, 0.90, 0.94, 0.97
-            )
-
+            val subPeakStat = WelfordAccumulator().apply { count = prefs.getInt("trained_tracks_count", 0).toDouble(); mean = prefs.getFloat("stat_mean_peak", 28f).toDouble(); m2 = prefs.getFloat("stat_m2_peak", 64f).toDouble() }
+            val subFloorStat = WelfordAccumulator().apply { count = subPeakStat.count; mean = prefs.getFloat("stat_mean_floor", 2.2f).toDouble(); m2 = prefs.getFloat("stat_m2_floor", 4.0f).toDouble() }
+            val growlStat = WelfordAccumulator().apply { count = subPeakStat.count; mean = prefs.getFloat("stat_mean_growl", 1.0f).toDouble(); m2 = prefs.getFloat("stat_m2_growl", 0.5f).toDouble() }
+            val checkpointsFractions = doubleArrayOf(0.05, 0.12, 0.18, 0.25, 0.32, 0.40, 0.48, 0.55, 0.62, 0.70, 0.78, 0.84, 0.90, 0.94, 0.97)
             var successfullyAdded = 0
 
             for ((index, uri) in uris.withIndex()) {
-                runOnUiThread {
-                    trainingProgressText.text = "Спектральный анализ: ${index + 1} / ${uris.size} (успешно: $successfullyAdded)..."
-                }
-
+                runOnUiThread { trainingProgressText.text = "Spectral Analysis: ${index + 1} / ${uris.size} (Success: $successfullyAdded)..." }
                 val profile = analyzeTrackSpectralProfile(uri, checkpointsFractions)
                 if (profile != null) {
                     subPeakStat.update(profile.peakSub.toDouble())
                     subFloorStat.update(profile.floorSub.toDouble())
                     growlStat.update(profile.growlRatio.toDouble())
                     successfullyAdded++
-
-                    if (successfullyAdded % 25 == 0) {
-                        saveCalibrationProfile(prefs, subPeakStat, subFloorStat, growlStat)
-                    }
+                    if (successfullyAdded % 25 == 0) saveCalibrationProfile(prefs, subPeakStat, subFloorStat, growlStat)
                 }
             }
 
             saveCalibrationProfile(prefs, subPeakStat, subFloorStat, growlStat)
 
             runOnUiThread {
-                btnPickFiles.isEnabled = true
-                btnPickFolder.isEnabled = true
-                trainingProgressText.text = "Обучение завершено! Добавлено: $successfullyAdded (Всего в базе: ${subPeakStat.count.toInt()})"
+                btnPickFiles.isEnabled = true; btnPickFolder.isEnabled = true
+                trainingProgressText.text = "Training Complete! Added: $successfullyAdded (Total: ${subPeakStat.count.toInt()})"
                 loadProfileInfo()
-                Toast.makeText(this@MainActivity, "База знаний: ${subPeakStat.count.toInt()} треков!", Toast.LENGTH_SHORT).show()
-
-                if (isRunning) {
-                    val intent = Intent(this@MainActivity, GlyphVisualizerService::class.java).apply {
-                        putExtra("ACTION", "RELOAD_PROFILE")
-                    }
-                    startService(intent)
-                }
+                Toast.makeText(this@MainActivity, "Knowledge Base: ${subPeakStat.count.toInt()} tracks!", Toast.LENGTH_SHORT).show()
+                if (isRunning) startService(Intent(this@MainActivity, GlyphVisualizerService::class.java).apply { putExtra("ACTION", "RELOAD_PROFILE") })
             }
         }
     }
 
-    private fun saveCalibrationProfile(
-        prefs: android.content.SharedPreferences,
-        peakStat: WelfordAccumulator,
-        floorStat: WelfordAccumulator,
-        growlStat: WelfordAccumulator
-    ) {
-        val stdDev = peakStat.getStdDev()
-        // Робастный 85-й процентиль (исключает перегруженный брак)
-        val robustPeak = (peakStat.mean + 1.2 * stdDev).toFloat().coerceIn(22f, 75f)
+    private fun saveCalibrationProfile(prefs: android.content.SharedPreferences, peakStat: WelfordAccumulator, floorStat: WelfordAccumulator, growlStat: WelfordAccumulator) {
+        val robustPeak = (peakStat.mean + 1.2 * peakStat.getStdDev()).toFloat().coerceIn(22f, 75f)
         val robustFloor = (floorStat.mean - 0.4 * floorStat.getStdDev()).toFloat().coerceIn(1.0f, 4.0f)
         val robustGrowl = growlStat.mean.toFloat().coerceIn(0.7f, 2.2f)
 
-        prefs.edit()
-            .putBoolean("is_trained", true)
-            .putInt("trained_tracks_count", peakStat.count.toInt())
-            .putFloat("stat_mean_peak", peakStat.mean.toFloat())
-            .putFloat("stat_m2_peak", peakStat.m2.toFloat())
-            .putFloat("stat_mean_floor", floorStat.mean.toFloat())
-            .putFloat("stat_m2_floor", floorStat.m2.toFloat())
-            .putFloat("stat_mean_growl", growlStat.mean.toFloat())
-            .putFloat("stat_m2_growl", growlStat.m2.toFloat())
-            .putFloat("peak_bass", robustPeak)
-            .putFloat("floor_bass", robustFloor)
-            .putFloat("growl_bias", robustGrowl)
-            .apply()
+        prefs.edit().putBoolean("is_trained", true).putInt("trained_tracks_count", peakStat.count.toInt())
+            .putFloat("stat_mean_peak", peakStat.mean.toFloat()).putFloat("stat_m2_peak", peakStat.m2.toFloat())
+            .putFloat("stat_mean_floor", floorStat.mean.toFloat()).putFloat("stat_m2_floor", floorStat.m2.toFloat())
+            .putFloat("stat_mean_growl", growlStat.mean.toFloat()).putFloat("stat_m2_growl", growlStat.m2.toFloat())
+            .putFloat("peak_bass", robustPeak).putFloat("floor_bass", robustFloor).putFloat("growl_bias", robustGrowl).apply()
     }
 
-    // НАДЕЖНОЕ ДЕКОДИРОВАНИЕ 15 МУЗЫКАЛЬНЫХ ТОЧЕК И РАСЧЕТ БПФ
     private fun analyzeTrackSpectralProfile(uri: Uri, checkpoints: DoubleArray): TrackSpectralProfile? {
-        var extractor: MediaExtractor? = null
-        var codec: MediaCodec? = null
-
+        var extractor: MediaExtractor? = null; var codec: MediaCodec? = null
         try {
             extractor = MediaExtractor()
-
-            // Безопасное открытие через FileDescriptor
-            try {
-                contentResolver.openFileDescriptor(uri, "r")?.use { pfd ->
-                    extractor.setDataSource(pfd.fileDescriptor)
-                } ?: run {
-                    extractor.setDataSource(applicationContext, uri, null)
-                }
-            } catch (_: Exception) {
-                extractor.setDataSource(applicationContext, uri, null)
-            }
+            try { contentResolver.openFileDescriptor(uri, "r")?.use { pfd -> extractor.setDataSource(pfd.fileDescriptor) } ?: run { extractor.setDataSource(applicationContext, uri, null) }
+            } catch (_: Exception) { extractor.setDataSource(applicationContext, uri, null) }
 
             var audioTrackIndex = -1
             for (i in 0 until extractor.trackCount) {
-                val format = extractor.getTrackFormat(i)
-                val mime = format.getString(MediaFormat.KEY_MIME) ?: ""
-                if (mime.startsWith("audio/")) {
-                    audioTrackIndex = i
-                    break
-                }
+                if ((extractor.getTrackFormat(i).getString(MediaFormat.KEY_MIME) ?: "").startsWith("audio/")) { audioTrackIndex = i; break }
             }
             if (audioTrackIndex < 0) return null
 
             extractor.selectTrack(audioTrackIndex)
             val format = extractor.getTrackFormat(audioTrackIndex)
             val durationUs = if (format.containsKey(MediaFormat.KEY_DURATION)) format.getLong(MediaFormat.KEY_DURATION) else 0L
-            val mime = format.getString(MediaFormat.KEY_MIME) ?: ""
             val channels = if (format.containsKey(MediaFormat.KEY_CHANNEL_COUNT)) format.getInteger(MediaFormat.KEY_CHANNEL_COUNT) else 2
 
-            codec = MediaCodec.createDecoderByType(mime)
-            codec.configure(format, null, null, 0)
-            codec.start()
+            codec = MediaCodec.createDecoderByType(format.getString(MediaFormat.KEY_MIME) ?: "")
+            codec.configure(format, null, null, 0); codec.start()
 
-            val checkPointsUs = if (durationUs > 10_000_000L) {
-                checkpoints.map { (durationUs * it).toLong() }.toLongArray()
-            } else longArrayOf(0L)
-
-            val info = MediaCodec.BufferInfo()
-            val fftSize = 1024
-            val fftReal = FloatArray(fftSize)
-            val fftImag = FloatArray(fftSize)
+            val checkPointsUs = if (durationUs > 10_000_000L) checkpoints.map { (durationUs * it).toLong() }.toLongArray() else longArrayOf(0L)
+            val info = MediaCodec.BufferInfo(); val fftSize = 1024
+            val fftReal = FloatArray(fftSize); val fftImag = FloatArray(fftSize)
             val hanningWindow = FloatArray(fftSize) { 0.5f * (1f - cos(2f * PI.toFloat() * it / (fftSize - 1))) }
 
-            var maxSubEnergy = 0f
-            var minSubEnergy = 999f
-            var sumMidEnergy = 0.0
-            var sumSubEnergy = 0.0
+            var maxSubEnergy = 0f; var minSubEnergy = 999f
+            var sumMidEnergy = 0.0; var sumSubEnergy = 0.0
             var totalFftFrames = 0
 
             for (seekTime in checkPointsUs) {
                 extractor.seekTo(seekTime, MediaExtractor.SEEK_TO_CLOSEST_SYNC)
                 try { codec.flush() } catch (_: Exception) {}
-
                 var buffersRead = 0
                 while (buffersRead < 8) {
                     val inIdx = codec.dequeueInputBuffer(2000)
                     if (inIdx >= 0) {
                         val buf = codec.getInputBuffer(inIdx)
                         val size = buf?.let { extractor.readSampleData(it, 0) } ?: -1
-                        if (size > 0) {
-                            codec.queueInputBuffer(inIdx, 0, size, extractor.sampleTime, 0)
-                            extractor.advance()
-                        } else {
-                            codec.queueInputBuffer(inIdx, 0, 0, 0, MediaCodec.BUFFER_FLAG_END_OF_STREAM)
-                            break
-                        }
+                        if (size > 0) { codec.queueInputBuffer(inIdx, 0, size, extractor.sampleTime, 0); extractor.advance() }
+                        else { codec.queueInputBuffer(inIdx, 0, 0, 0, MediaCodec.BUFFER_FLAG_END_OF_STREAM); break }
                     }
 
                     val outIdx = codec.dequeueOutputBuffer(info, 2000)
@@ -468,112 +330,60 @@ class MainActivity : AppCompatActivity() {
                         val outBuf = codec.getOutputBuffer(outIdx)
                         if (outBuf != null && info.size > 0) {
                             val shortBuf = outBuf.asShortBuffer()
-                            val totalSamples = shortBuf.remaining()
-
-                            // Если стерео — смешиваем в моно
-                            if (totalSamples >= fftSize * channels) {
+                            if (shortBuf.remaining() >= fftSize * channels) {
                                 for (k in 0 until fftSize) {
                                     val left = shortBuf.get() / 32768f
                                     val right = if (channels > 1) shortBuf.get() / 32768f else left
-                                    val mono = (left + right) * 0.5f
-                                    fftReal[k] = mono * hanningWindow[k]
-                                    fftImag[k] = 0f
+                                    fftReal[k] = ((left + right) * 0.5f) * hanningWindow[k]; fftImag[k] = 0f
                                 }
-
                                 computeRadix2Fft(fftReal, fftImag, fftSize)
-
-                                // Нормализация к масштабу 0..60 (идентично системному Visualizer)
                                 val normScale = 250f / fftSize
-
-                                // Саб: 43 - 172 Гц (бины 1..4)
-                                var sub = 0f
-                                for (bin in 1..4) sub += hypot(fftReal[bin], fftImag[bin])
+                                var sub = 0f; for (bin in 1..4) sub += hypot(fftReal[bin], fftImag[bin])
                                 sub = (sub / 4f) * normScale * 3.5f
-
-                                // Воббл / Середина: 215 - 2000 Гц (бины 5..46)
-                                var mid = 0f
-                                for (bin in 5..46) mid += hypot(fftReal[bin], fftImag[bin])
+                                var mid = 0f; for (bin in 5..46) mid += hypot(fftReal[bin], fftImag[bin])
                                 mid = (mid / 42f) * normScale * 3.0f
 
                                 if (sub > maxSubEnergy) maxSubEnergy = sub
                                 if (sub in 0.4f..minSubEnergy) minSubEnergy = sub
-
-                                sumSubEnergy += sub
-                                sumMidEnergy += mid
-                                totalFftFrames++
+                                sumSubEnergy += sub; sumMidEnergy += mid; totalFftFrames++
                             }
                             buffersRead++
                         }
                         codec.releaseOutputBuffer(outIdx, false)
-                    } else if (outIdx == MediaCodec.INFO_TRY_AGAIN_LATER && inIdx < 0) {
-                        buffersRead++
-                    }
+                    } else if (outIdx == MediaCodec.INFO_TRY_AGAIN_LATER && inIdx < 0) { buffersRead++ }
                 }
             }
 
-            // Честная проверка диапазона
             if (maxSubEnergy in 5f..160f && totalFftFrames > 0) {
-                val avgSub = (sumSubEnergy / totalFftFrames).toFloat()
-                val avgMid = (sumMidEnergy / totalFftFrames).toFloat()
-                val growlRatio = (avgMid / (avgSub + 0.1f)).coerceIn(0.6f, 2.2f)
-
-                return TrackSpectralProfile(
-                    peakSub = maxSubEnergy,
-                    floorSub = if (minSubEnergy < 900f) minSubEnergy else 2.0f,
-                    growlRatio = growlRatio
-                )
+                return TrackSpectralProfile(maxSubEnergy, if (minSubEnergy < 900f) minSubEnergy else 2.0f, ((sumMidEnergy / totalFftFrames).toFloat() / ((sumSubEnergy / totalFftFrames).toFloat() + 0.1f)).coerceIn(0.6f, 2.2f))
             }
-        } catch (e: Exception) {
-            Log.e("GlyphTraining", "Ошибка трека $uri: ${e.message}")
-            return null
-        } finally {
-            try { codec?.stop() } catch (_: Exception) {}
-            try { codec?.release() } catch (_: Exception) {}
-            try { extractor?.release() } catch (_: Exception) {}
-        }
+        } catch (e: Exception) { Log.e("GlyphTraining", "Track Error $uri: ${e.message}"); return null }
+        finally { try { codec?.stop() } catch (_: Exception) {}; try { codec?.release() } catch (_: Exception) {}; try { extractor?.release() } catch (_: Exception) {} }
         return null
     }
 
-    // БЫСТРЫЙ И СТАБИЛЬНЫЙ COOLEY-TUKEY FFT
     private fun computeRadix2Fft(real: FloatArray, imag: FloatArray, n: Int) {
         var j = 0
         for (i in 0 until n - 1) {
-            if (i < j) {
-                val tempR = real[i]; real[i] = real[j]; real[j] = tempR
-                val tempI = imag[i]; imag[i] = imag[j]; imag[j] = tempI
-            }
-            var k = n shr 1
-            while (k > 0 && k <= j) {
-                j -= k
-                k = k shr 1
-            }
-            j += k
+            if (i < j) { val tempR = real[i]; real[i] = real[j]; real[j] = tempR; val tempI = imag[i]; imag[i] = imag[j]; imag[j] = tempI }
+            var k = n shr 1; while (k > 0 && k <= j) { j -= k; k = k shr 1 }; j += k
         }
-
         var l = 2
         while (l <= n) {
             val halfL = l shr 1
             val angle = (-2.0 * PI / l).toFloat()
-            val wStepR = cos(angle)
-            val wStepI = sin(angle)
-
+            val wStepR = cos(angle); val wStepI = sin(angle)
             var i = 0
             while (i < n) {
-                var wR = 1.0f
-                var wI = 0.0f
+                var wR = 1.0f; var wI = 0.0f
                 for (m in 0 until halfL) {
-                    val pos = i + m
-                    val match = pos + halfL
+                    val pos = i + m; val match = pos + halfL
                     val tr = wR * real[match] - wI * imag[match]
                     val ti = wR * imag[match] + wI * real[match]
-                    real[match] = real[pos] - tr
-                    imag[match] = imag[pos] - ti
-                    real[pos] += tr
-                    imag[pos] += ti
-
+                    real[match] = real[pos] - tr; imag[match] = imag[pos] - ti
+                    real[pos] += tr; imag[pos] += ti
                     val nextWR = wR * wStepR - wI * wStepI
-                    wI = wR * wStepI + wI * wStepR
-                    wR = nextWR
+                    wI = wR * wStepI + wI * wStepR; wR = nextWR
                 }
                 i += l
             }
@@ -582,56 +392,32 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun sendServiceAction(action: String, boolExtra: Boolean = false) {
-        val intent = Intent(this, GlyphVisualizerService::class.java).apply {
-            putExtra("ACTION", action)
-            putExtra("BOOL_EXTRA", boolExtra)
-        }
-        startService(intent)
+        startService(Intent(this, GlyphVisualizerService::class.java).apply { putExtra("ACTION", action); putExtra("BOOL_EXTRA", boolExtra) })
     }
 
     private fun loadProfileInfo() {
         val prefs = getSharedPreferences("glyph_profile", Context.MODE_PRIVATE)
         val count = prefs.getInt("trained_tracks_count", 0)
         if (count > 0) {
-            val peak = prefs.getFloat("peak_bass", 28f)
-            val growl = prefs.getFloat("growl_bias", 1.0f)
-            statusText.text = "База знаний: $count треков [Пик: ${peak.toInt()} | Воббл: ${String.format("%.2f", growl)}]"
+            statusText.text = "Knowledge Base: $count tracks [Peak: ${prefs.getFloat("peak_bass", 28f).toInt()} | Growl: ${String.format("%.2f", prefs.getFloat("growl_bias", 1.0f))}]"
             statusText.setTextColor(getColor(android.R.color.holo_green_light))
         } else {
-            statusText.text = "База знаний: 0 треков (нажмите для обучения)"
+            statusText.text = "Knowledge Base: 0 tracks (Tap FILES to train)"
             statusText.setTextColor(getColor(android.R.color.darker_gray))
         }
     }
 
-    override fun onDestroy() {
-        super.onDestroy()
-        GlyphVisualizerService.liveFrameListener = null
-    }
+    override fun onDestroy() { super.onDestroy(); GlyphVisualizerService.liveFrameListener = null }
 
     private fun checkPermissionsAndToggle() {
         val perms = mutableListOf(Manifest.permission.RECORD_AUDIO)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            perms.add(Manifest.permission.POST_NOTIFICATIONS)
-        }
-        if (perms.all { ContextCompat.checkSelfPermission(this, it) == PackageManager.PERMISSION_GRANTED }) {
-            toggleService()
-        } else {
-            requestPermissionsLauncher.launch(perms.toTypedArray())
-        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) perms.add(Manifest.permission.POST_NOTIFICATIONS)
+        if (perms.all { ContextCompat.checkSelfPermission(this, it) == PackageManager.PERMISSION_GRANTED }) toggleService() else requestPermissionsLauncher.launch(perms.toTypedArray())
     }
 
     private fun toggleService() {
         val intent = Intent(this, GlyphVisualizerService::class.java)
-        if (!isRunning) {
-            ContextCompat.startForegroundService(this, intent)
-            isRunning = true
-            btnToggle.text = "ВЫКЛЮЧИТЬ"
-            btnToggle.setBackgroundColor(getColor(android.R.color.holo_red_dark))
-        } else {
-            stopService(intent)
-            isRunning = false
-            btnToggle.text = "СТАРТ"
-            btnToggle.setBackgroundColor(getColor(android.R.color.white))
-        }
+        if (!isRunning) { ContextCompat.startForegroundService(this, intent); isRunning = true; btnToggle.text = "STOP"; btnToggle.setBackgroundColor(getColor(android.R.color.holo_red_dark)) }
+        else { stopService(intent); isRunning = false; btnToggle.text = "START"; btnToggle.setBackgroundColor(getColor(android.R.color.white)) }
     }
 }

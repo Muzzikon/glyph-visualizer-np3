@@ -1,255 +1,217 @@
 <?xml version="1.0" encoding="utf-8"?>
-<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<androidx.constraintlayout.widget.ConstraintLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#000000">
+    android:background="#050505"
+    android:padding="16dp">
 
-    <!-- КРУПНЫЙ ДИСПЛЕЙ МАТРИЦЫ (Клик по экрану по-прежнему скрывает/показывает пульт) -->
+    <!-- GLYPH MATRIX PREVIEW -->
     <com.example.glyphvisualizer.GlyphPreviewView
         android:id="@+id/glyphPreview"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:layout_centerInParent="true" />
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:layout_marginBottom="16dp"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintBottom_toTopOf="@+id/controlsPanel"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintDimensionRatio="1:1" />
 
-    <!-- АККУРАТНАЯ ПАНЕЛЬ УПРАВЛЕНИЯ В СТИЛЕ NOTHING OS -->
+    <!-- BOTTOM CONTROLS PANEL -->
     <LinearLayout
         android:id="@+id/controlsPanel"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_alignParentBottom="true"
         android:orientation="vertical"
-        android:gravity="center_horizontal"
-        android:paddingStart="16dp"
-        android:paddingEnd="16dp"
-        android:paddingTop="14dp"
-        android:paddingBottom="42dp"
-        android:background="#F2080808">
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent">
 
-        <!-- Название активного узора -->
+        <!-- Info Texts -->
         <TextView
             android:id="@+id/patternNameText"
-            android:layout_width="wrap_content"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="GLYPH MATRIX EMULATOR"
-            android:textColor="#00FFCC"
-            android:textSize="13sp"
+            android:text="[PATTERN NAME]"
+            android:textAlignment="center"
+            android:textColor="#00E5FF"
+            android:textSize="16sp"
             android:textStyle="bold"
-            android:letterSpacing="0.08"
-            android:gravity="center" />
+            android:layout_marginBottom="4dp"/>
 
-        <!-- Статус обученной базы знаний -->
         <TextView
             android:id="@+id/statusText"
-            android:layout_width="wrap_content"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="2dp"
-            android:text="База знаний: 0 треков"
-            android:textColor="#888888"
-            android:textSize="11sp" />
+            android:text="Knowledge Base: Loading..."
+            android:textAlignment="center"
+            android:textColor="#AAAAAA"
+            android:textSize="12sp"
+            android:layout_marginBottom="8dp"/>
 
-        <!-- Блок телеметрии и частот -->
+        <!-- ТЕЛЕМЕТРИЯ (HUD ДЛЯ РАЗРАБОТКИ) -->
+        <!-- ТЕЛЕМЕТРИЯ (HUD ДЛЯ РАЗРАБОТКИ) -->
+        <TextView
+            android:id="@+id/debugDataText"
+            android:layout_width="match_parent"
+            android:layout_height="60dp"
+            android:lines="4"
+            android:minLines="4"
+            android:maxLines="4"
+            android:gravity="bottom|center_horizontal"
+            android:text="[TELEMETRY STANDBY]\n\n\n"
+            android:fontFamily="monospace"
+            android:textColor="#00FF00"
+            android:textSize="10sp"
+            android:layout_marginBottom="8dp"/>
+
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:orientation="horizontal">
+            android:orientation="horizontal"
+            android:layout_marginBottom="4dp">
 
             <TextView
                 android:id="@+id/freqStatsText"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:text="САБ: 0 | ВОББЛ: 0 | ВЕРХ: 0"
-                android:textColor="#777777"
-                android:textSize="10sp"
-                android:fontFamily="monospace" />
+                android:text="SUB: 0 | GROWL: 0 | HIGH: 0"
+                android:textColor="#888888"
+                android:textSize="12sp"/>
 
             <TextView
                 android:id="@+id/tensionValText"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="0.00"
-                android:textColor="#00FFCC"
-                android:textSize="11sp"
-                android:textStyle="bold"
-                android:fontFamily="monospace" />
+                android:textColor="#00E5FF"
+                android:textSize="12sp"
+                android:textStyle="bold"/>
         </LinearLayout>
 
-        <!-- Полоса напряжения (Tension) -->
         <ProgressBar
             android:id="@+id/progressTension"
             style="?android:attr/progressBarStyleHorizontal"
             android:layout_width="match_parent"
-            android:layout_height="4dp"
-            android:layout_marginTop="3dp"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
             android:max="100"
             android:progress="0"
-            android:progressTint="#00FFCC" />
+            android:progressTint="#00E5FF"/>
 
-        <!-- РЯД 1: Навигация узоров [ ◀ ] [ СЦЕНАРИЙ ] [ ▶ ] -->
+        <!-- Pattern Controls -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="10dp"
             android:orientation="horizontal"
-            android:gravity="center">
+            android:layout_marginBottom="12dp">
 
             <Button
                 android:id="@+id/btnPrevPattern"
-                android:layout_width="48dp"
-                android:layout_height="40dp"
-                android:text="◀"
-                android:textSize="13sp"
+                android:layout_width="60dp"
+                android:layout_height="wrap_content"
+                android:backgroundTint="#333333"
                 android:textColor="#FFFFFF"
-                android:backgroundTint="#1C1C1C"
-                android:insetTop="0dp"
-                android:insetBottom="0dp"
-                android:padding="0dp"
-                app:cornerRadius="12dp" />
+                android:text="◀" />
 
             <Button
                 android:id="@+id/btnAutoPattern"
                 android:layout_width="0dp"
-                android:layout_height="40dp"
+                android:layout_height="wrap_content"
                 android:layout_weight="1"
                 android:layout_marginStart="8dp"
                 android:layout_marginEnd="8dp"
-                android:text="СЦЕНАРИЙ"
-                android:textSize="11sp"
-                android:textStyle="bold"
-                android:letterSpacing="0.05"
+                android:backgroundTint="#00B0FF"
                 android:textColor="#000000"
-                android:backgroundTint="#00FFCC"
-                android:insetTop="0dp"
-                android:insetBottom="0dp"
-                app:cornerRadius="12dp" />
+                android:textStyle="bold"
+                android:text="AUTO" />
 
             <Button
                 android:id="@+id/btnNextPattern"
-                android:layout_width="48dp"
-                android:layout_height="40dp"
-                android:text="▶"
-                android:textSize="13sp"
+                android:layout_width="60dp"
+                android:layout_height="wrap_content"
+                android:backgroundTint="#333333"
                 android:textColor="#FFFFFF"
-                android:backgroundTint="#1C1C1C"
-                android:insetTop="0dp"
-                android:insetBottom="0dp"
-                android:padding="0dp"
-                app:cornerRadius="12dp" />
+                android:text="▶" />
         </LinearLayout>
 
-        <!-- РЯД 2: Главные кнопки [ СТАРТ / ВЫКЛЮЧИТЬ ] и [ БЕЗ ЗВУКА ] -->
+        <!-- Main Toggles -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
             android:orientation="horizontal"
-            android:gravity="center">
+            android:layout_marginBottom="12dp">
 
             <Button
                 android:id="@+id/btnToggle"
                 android:layout_width="0dp"
-                android:layout_height="42dp"
+                android:layout_height="60dp"
                 android:layout_weight="1"
-                android:text="СТАРТ"
-                android:textStyle="bold"
-                android:textSize="12sp"
-                android:letterSpacing="0.05"
+                android:layout_marginEnd="8dp"
+                android:backgroundTint="#E0E0E0"
                 android:textColor="#000000"
-                android:backgroundTint="#FFFFFF"
-                android:insetTop="0dp"
-                android:insetBottom="0dp"
-                app:cornerRadius="12dp" />
+                android:textStyle="bold"
+                android:text="START" />
 
             <Button
                 android:id="@+id/btnSilentMode"
                 android:layout_width="0dp"
-                android:layout_height="42dp"
+                android:layout_height="60dp"
                 android:layout_weight="1"
-                android:layout_marginStart="8dp"
-                android:text="БЕЗ ЗВУКА: ВЫКЛ"
-                android:textSize="10sp"
+                android:backgroundTint="#555555"
+                android:textColor="#FFFFFF"
                 android:textStyle="bold"
-                android:textColor="#CCCCCC"
-                android:backgroundTint="#1A1A1A"
-                android:insetTop="0dp"
-                android:insetBottom="0dp"
-                app:cornerRadius="12dp" />
+                android:text="SILENT: OFF" />
         </LinearLayout>
 
-        <!-- РЯД 3: Источники звука и папки [ ПРИЛОЖЕНИЯ ] [ ФАЙЛЫ ] [ ПАПКА ] -->
+        <!-- Utility Buttons -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
             android:orientation="horizontal"
-            android:gravity="center">
+            android:layout_marginBottom="8dp">
 
             <Button
                 android:id="@+id/btnSelectApps"
                 android:layout_width="0dp"
-                android:layout_height="38dp"
-                android:layout_weight="1.2"
-                android:text="ПРИЛОЖЕНИЯ"
-                android:textSize="10sp"
-                android:maxLines="1"
-                android:ellipsize="none"
-                android:textColor="#00FFCC"
-                android:backgroundTint="#142622"
-                android:insetTop="0dp"
-                android:insetBottom="0dp"
-                android:paddingStart="4dp"
-                android:paddingEnd="4dp"
-                app:cornerRadius="10dp" />
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_marginEnd="4dp"
+                android:backgroundTint="#222222"
+                android:textColor="#00E5FF"
+                android:text="APPS" />
 
             <Button
                 android:id="@+id/btnPickFiles"
                 android:layout_width="0dp"
-                android:layout_height="38dp"
-                android:layout_weight="0.9"
-                android:layout_marginStart="6dp"
-                android:text="ФАЙЛЫ"
-                android:textSize="10sp"
-                android:maxLines="1"
-                android:textColor="#DDDDDD"
-                android:backgroundTint="#1C1C1C"
-                android:insetTop="0dp"
-                android:insetBottom="0dp"
-                android:paddingStart="4dp"
-                android:paddingEnd="4dp"
-                app:cornerRadius="10dp" />
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_marginEnd="4dp"
+                android:backgroundTint="#222222"
+                android:textColor="#00E5FF"
+                android:text="FILES" />
 
             <Button
                 android:id="@+id/btnPickFolder"
                 android:layout_width="0dp"
-                android:layout_height="38dp"
-                android:layout_weight="0.9"
-                android:layout_marginStart="6dp"
-                android:text="ПАПКА"
-                android:textSize="10sp"
-                android:maxLines="1"
-                android:textColor="#DDDDDD"
-                android:backgroundTint="#1C1C1C"
-                android:insetTop="0dp"
-                android:insetBottom="0dp"
-                android:paddingStart="4dp"
-                android:paddingEnd="4dp"
-                app:cornerRadius="10dp" />
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:backgroundTint="#222222"
+                android:textColor="#00E5FF"
+                android:text="FOLDER" />
         </LinearLayout>
 
-        <!-- Текст прогресса анализа треков (приподнят с безопасным отступом) -->
         <TextView
             android:id="@+id/trainingProgressText"
-            android:layout_width="wrap_content"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="6dp"
             android:text=""
-            android:textColor="#00FFCC"
-            android:textSize="10sp"
-            android:fontFamily="monospace"
-            android:gravity="center" />
-
+            android:textAlignment="center"
+            android:textColor="#00E5FF"
+            android:textSize="12sp"/>
     </LinearLayout>
 
-</RelativeLayout>
+</androidx.constraintlayout.widget.ConstraintLayout>
