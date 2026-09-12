@@ -42,17 +42,14 @@ class GlyphVisualizerService : Service() {
     private val renderHandler = Handler(Looper.getMainLooper())
     private val frameIntervalMs = 28L // ~35 FPS
 
-    // Звуковые огибающие
     @Volatile private var targetBass = 0f
     @Volatile private var targetMid = 0f
     @Volatile private var targetHigh = 0f
     private var prevRawBass = 0f
     private var prevRawHigh = 0f
 
-    // Адаптивный Bluetooth AGC (авто-гейн для тихих гарнитур)
     private var rollingMaxSignal = 15f
 
-    // Профиль калибровки
     private var savedPeakBass = 28f
     private var savedFloorBass = 2f
     private var savedGrowlBias = 1.0f
@@ -63,7 +60,6 @@ class GlyphVisualizerService : Service() {
     private var rhythmFlux = 0f
     private var subToMidRatio = 1.0f
 
-    // Маршруты каталога
     private val melodicRoute = intArrayOf(4, 2, 6, 7)
     private val houseRoute = intArrayOf(1, 3, 2, 5)
     private val dubstepRoute = intArrayOf(0, 8, 1, 5, 3)
@@ -79,27 +75,20 @@ class GlyphVisualizerService : Service() {
     private var smoothHigh = 0f
     private var tension = 0f
 
-    // Режимы воспроизведения и пауза
     private var isMusicSilent = false
     private var silenceCounter = 0
     private var isPreDropVoid = false
     private var voidTimer = 0L
 
-    // Режим «БЕЗ ЗВУКА» (140 BPM)
     private var isSilentDemoMode = false
     private var demoStartTime = 0L
 
-    // Тестовые режимы
     private var testModeOverride = 0
     private var isManualPatternOverride = false
 
-    // Белый список приложений
     private val whitelistedPackages = mutableSetOf<String>()
-
-    // Watchdog
     private var lastFftTime = 0L
 
-    // Кинетика
     private var shurikenContinuousAngle = 0.0
     private var outerRingAngle = 0.0
     private var kineticVelocityBoost = 0.0
@@ -108,18 +97,15 @@ class GlyphVisualizerService : Service() {
     private var tearoutSawAngle = 0.0
     private var timeSec = 0.0
 
-    // Толчок матрицы (Impact Shake)
     private var shakeImpulse = 0.0
     private var shakeX = 0.0
     private var shakeY = 0.0
     private var kickFlash = 0f
 
-    // Строб
     private var isStrobeGating = false
     private var strobeTick = 0
     private var peakDropEnergy = 10f
 
-    // Морфинг узоров
     private var currentDropPattern = 0
     private var prevDropPattern = 0
     private var morphProgress = 1.0f
@@ -128,7 +114,6 @@ class GlyphVisualizerService : Service() {
     private var nextPatternQueued = -1
     private var patternCooldown = 0L
 
-    // Спокойный арсенал (3 узора)
     private var calmPatternType = 0
     private var calmPatternTimer = 0L
 
@@ -141,10 +126,10 @@ class GlyphVisualizerService : Service() {
         "[5] 3D-Октаэдр NSD (Volumetric)",
         "[6] Небула-Роза: Спирограф",
         "[7] 3D-Калейдоскоп: Био-Кристалл",
-        "[8] Чёткая Tearout-Пила (HD Disc)"
+        "[8] Чёткая Tearout-Пила (HD Disc)",
+        "[9] Калейдоскоп Хабстракта (The Storm)" // НОВЫЙ
     )
 
-    // Кэш для 3D-Октаэдра с глубиной Z
     private val octVertices = arrayOf(
         doubleArrayOf(0.0, 1.0, 0.0), doubleArrayOf(0.0, -1.0, 0.0),
         doubleArrayOf(1.0, 0.0, 0.0), doubleArrayOf(-1.0, 0.0, 0.0),
@@ -159,7 +144,6 @@ class GlyphVisualizerService : Service() {
     private val projOctY = DoubleArray(6)
     private val projOctZ = DoubleArray(6)
 
-    // Слушатель смены аудиоустройств (наушники/динамик)
     private val audioDeviceCallback = object : AudioDeviceCallback() {
         override fun onAudioDevicesAdded(addedDevices: Array<out AudioDeviceInfo>?) {
             reconnectVisualizerOnAudioChange()
@@ -212,13 +196,13 @@ class GlyphVisualizerService : Service() {
             "PREV_PATTERN" -> {
                 isManualPatternOverride = true
                 prevDropPattern = currentDropPattern
-                currentDropPattern = (currentDropPattern - 1 + 9) % 9
+                currentDropPattern = (currentDropPattern - 1 + 10) % 10 // ТУТ 10
                 startMorph()
             }
             "NEXT_PATTERN" -> {
                 isManualPatternOverride = true
                 prevDropPattern = currentDropPattern
-                currentDropPattern = (currentDropPattern + 1) % 9
+                currentDropPattern = (currentDropPattern + 1) % 10 // И ТУТ 10
                 startMorph()
             }
             "MODE_AUTO" -> {
@@ -326,7 +310,6 @@ class GlyphVisualizerService : Service() {
         }
     }
 
-    // УМНЫЙ АНАЛИЗАТОР С АВТО-ГЕЙНОМ ДЛЯ ЛЮБЫХ НАУШНИКОВ
     private fun analyzeSound(fft: ByteArray) {
         if (whitelistedPackages.isNotEmpty()) {
             val activeApp = MediaNotificationListener.activeMediaAppPackage
@@ -364,7 +347,6 @@ class GlyphVisualizerService : Service() {
             isMusicSilent = false
         }
 
-        // SMART BLUETOOTH AGC: Автоматическое вытягивание сигнала на тихих гарнитурах
         rollingMaxSignal = max(rollingMaxSignal * 0.996f, rawSum)
         val bluetoothAgcBoost = if (rollingMaxSignal < 16f && rawSum > 0.4f) {
             (26f / max(1.8f, rollingMaxSignal)).coerceIn(1.0f, 6.0f)
@@ -385,7 +367,6 @@ class GlyphVisualizerService : Service() {
         val snareDelta = h - prevRawHigh
         prevRawBass = b; prevRawHigh = h
 
-        // Адаптивные пороги удара (работают одинаково четко и на динамиках, и на любых наушниках)
         val kickHitThreshold = max(4.5f, dynamicPeak * 0.20f)
         val snareHitThreshold = max(4.0f, dynamicPeak * 0.16f)
 
@@ -408,6 +389,12 @@ class GlyphVisualizerService : Service() {
         subToMidRatio = b / (m + 0.1f)
         growlIntensity = (m / (16f * savedGrowlBias)).coerceIn(0f, 2.5f)
 
+        // АБСОЛЮТНЫЙ АНТИ-ВОКАЛ: Гроулы и глитчи работают ТОЛЬКО если есть четкий бит (удары)
+        // Если ритмики нет, мы считаем любой сигнал в середине голосом/падом и умножаем на ноль.
+        if (hitDensity < 0.45f || subToMidRatio < 0.85f || activeRoute != dubstepRoute) {
+            growlIntensity *= 0.02f
+        }
+
         val normBass = ((b - dynamicFloor) / (dynamicPeak - dynamicFloor + 1e-3f)).coerceIn(0f, 1.8f)
 
         val hasRhythmicDrive = hitDensity > 0.35f || rhythmFlux > 5.5f
@@ -427,16 +414,16 @@ class GlyphVisualizerService : Service() {
             }
         }
 
-        // Кинетика
+        // Блок агрессивного Whiplash (Паралич от Snare и рывок на Kick)
         if (kickDelta > kickHitThreshold * 1.4f && tension > 0.45f) {
-            kineticVelocityBoost = 0.16
+            kineticVelocityBoost = 0.28 // Дикий рывок вращения вперед
             kickFlash = 1.0f
             if (activeRoute == dubstepRoute) {
-                shakeImpulse = (b / dynamicPeak * 0.70).coerceIn(0.0, 0.75)
+                shakeImpulse = (b / dynamicPeak * 1.1).coerceIn(0.0, 1.4) // Матрицу трясет ощутимо сильнее!
             }
         } else if (snareDelta > snareHitThreshold * 1.3f && tension > 0.45f) {
-            kineticVelocityBoost = -0.15
-            rhythmicBrake = 0.18
+            kineticVelocityBoost = -0.05 // Микро-рывок в обратную сторону
+            rhythmicBrake = -0.35 // Хлесткий паралич! На долю секунды анимация бьется о стену и дергается назад
         }
 
         val now = SystemClock.elapsedRealtime()
@@ -583,9 +570,20 @@ class GlyphVisualizerService : Service() {
         }
 
         if (!isTimeFrozen && !isPreDropVoid) {
-            smoothBass = smoothBass * 0.74f + targetBass * 0.26f
-            smoothMid = smoothMid * 0.78f + targetMid * 0.22f
-            smoothHigh = smoothHigh * 0.75f + targetHigh * 0.25f
+            // Экспоненциальные атаки и тугие спады (Black Label Pump)
+            smoothBass = if (targetBass > smoothBass) {
+                smoothBass * 0.20f + targetBass * 0.80f // Моментальный пробой матрицы
+            } else {
+                smoothBass * 0.82f + targetBass * 0.18f // Тугая натяжка при возврате
+            }
+
+            smoothHigh = if (targetHigh > smoothHigh) {
+                smoothHigh * 0.10f + targetHigh * 0.90f // Хлесткий удар рабочего барабана
+            } else {
+                smoothHigh * 0.75f + targetHigh * 0.25f
+            }
+
+            smoothMid = smoothMid * 0.78f + targetMid * 0.22f // Скрежет оставляем тягучим и плавным
 
             val normB = (smoothBass / dynamicPeak).coerceIn(0f, 1f)
             val calculatedT = if (activeRoute == melodicRoute) (normB * 0.35f + (smoothMid / 40f) * 0.25f).coerceIn(0.12f, 0.45f)
@@ -603,8 +601,16 @@ class GlyphVisualizerService : Service() {
                 else -> 0.035
             }
 
-            kineticVelocityBoost *= 0.88
-            rhythmicBrake = rhythmicBrake * 0.70 + 1.0 * 0.30
+            // Инерция стала более вязкой для паралича
+            kineticVelocityBoost *= 0.82
+            rhythmicBrake = rhythmicBrake * 0.80 + 1.0 * 0.20
+
+            // ФИЛЬТР СПОКОЙСТВИЯ: Жесткий блок любой агрессии на вокале
+            if ((tension < 0.35f || hitDensity < 0.3f) && testModeOverride != 2) {
+                kineticVelocityBoost = 0.0
+                shakeImpulse = 0.0
+                rhythmicBrake = 1.0
+            }
 
             val totalSpeed = (baseSpeed + kineticVelocityBoost) * rhythmicBrake
             shurikenContinuousAngle += totalSpeed
@@ -630,7 +636,6 @@ class GlyphVisualizerService : Service() {
         kickFlash *= 0.6f
         buildupHitStrobe *= 0.75f
 
-        // Предрасчет 3D-Октаэдра с глубиной Z
         precalculate3DOctahedron(polyAngle3D, 6.2 + (smoothBass / dynamicPeak) * 2.0 + kickFlash * 1.8)
 
         renderMasterVisual(tension, strobeDim)
@@ -679,38 +684,74 @@ class GlyphVisualizerService : Service() {
         for (y in 0 until matrixSide) {
             for (x in 0 until matrixSide) {
                 val idx = y * matrixSide + x
-                val dx = x - centerX
-                val dy = y - centerY
-                val r = hypot(dx, dy)
+                var dx = x - centerX
+                var dy = y - centerY
 
-                if (r > 12.5) {
+                // === SPATIAL DISTORTION LAYER (BLACK LABEL) ===
+
+                // 1. Tearout Glitch Slicer (Горизонтальные разрывы пространства)
+                if (activeRoute == dubstepRoute && growlIntensity > 1.3f) {
+                    val stripe = (y.toDouble() + timeSec * 22.0).toInt() % 5
+                    if (stripe == 0) {
+                        dx += sin(y * 2.0 + timeSec * 15.0) * growlIntensity * 1.7 // Ослабили!
+                    } else if (stripe == 2) {
+                        dx -= cos(y * 1.5 - timeSec * 12.0) * growlIntensity * 1.1 // Сделали аккуратнее
+                    }
+                }
+
+                var r = hypot(dx, dy)
+                var theta = atan2(dy, dx)
+
+                // 2. Black Hole Implosion (Засасываем фигуру в вакуум перед дропом)
+                var singularityDot = 0.0
+                if (isPreDropVoid) {
+                    val elapsedVoid = (SystemClock.elapsedRealtime() - voidTimer) / 1000.0
+
+                    // Фигура сжимается в черную дыру (читаем данные всё дальше от центра)
+                    r += (elapsedVoid * elapsedVoid) * 20.0
+                    // Жестко закручиваем свет (эффект гравитационного линзирования)
+                    theta += (elapsedVoid * 12.0) / (r + 1.0)
+
+                    // Обновляем оси под 3D-Октаэдр и HD Пилу
+                    dx = r * cos(theta)
+                    dy = r * sin(theta)
+
+                    // Оставляем только яркую светящуюся точку (ядро сингулярности)
+                    val realR = hypot(x - centerX, y - centerY)
+                    singularityDot = exp(-realR * 3.5) * 0.8
+                }
+
+                // === END DISTORTION LAYER ===
+
+                // Отсекаем всё, что улетело за края матрицы, если это не центральная точка вакуума
+                if (r > 12.5 && singularityDot == 0.0) {
                     frameBuffer[idx] = 0
                     continue
                 }
 
-                if (isPreDropVoid) {
-                    val dot = exp(-r * 3.5) * 0.8
-                    frameBuffer[idx] = (dot * 255.0).toInt().coerceIn(0, 255)
-                    continue
-                }
-
-                val theta = atan2(dy, dx)
-
-                // 1. СПОКОЙНЫЙ РЕЖИМ (С ЧЕТКИМ КИБЕР-ЗАТВОРОМ И ШЕЛКОМ)
+                // 1. СПОКОЙНЫЙ РЕЖИМ
                 val vCalm = when (calmPatternType) {
-                    0 -> { // Дзен-Туннель
+                    0 -> {
                         val zoom = (ln(r + 0.1) * 1.8 - timeSec * 0.4)
                         val recursiveRing = abs(sin(zoom * PI)).pow(3.0)
                         (recursiveRing * exp(-r * 0.12) * (0.4 + bNorm * 0.3)).coerceIn(0.0, 1.0)
                     }
-                    1 -> { // Шёлковая Аврора
-                        val wave1 = dy - sin(dx * 0.35 + timeSec * 0.8) * 2.6
-                        val wave2 = dy + cos(dx * 0.30 - timeSec * 0.6) * 2.2
-                        val ribbon1 = exp(-abs(wave1) * 1.1) * (0.45 + mNorm * 0.4)
-                        val ribbon2 = exp(-abs(wave2) * 1.3) * (0.35 + hNorm * 0.3)
-                        max(ribbon1, ribbon2).coerceIn(0.0, 1.0)
+                    1 -> {
+                        // "Лунное Гало" - органическое плазменное кольцо
+                        val baseHalo = 6.5 + bNorm * 1.5
+                        // Плавные искажения по кругу от вокала (Mid) и высоких (High)
+                        val organicWarp = sin(theta * 3.0 + timeSec * 1.4) * (1.0 + mNorm * 1.5) +
+                                cos(theta * 5.0 - timeSec * 0.9) * (hNorm * 1.2)
+
+                        val deformedR = baseHalo + organicWarp
+                        // Само кольцо с очень мягкими краями
+                        val plasmaRing = exp(-abs(r - deformedR) * 1.5) * (0.5 + mNorm * 0.4)
+                        // Легкое дышащее ядро внутри
+                        val innerGlow = exp(-r * 1.1) * (0.25 + hNorm * 0.25)
+
+                        max(plasmaRing, innerGlow).coerceIn(0.0, 1.0)
                     }
-                    else -> { // КИБЕР-ЗАТВОР (Яркие лепестки диафрагмы)
+                    else -> {
                         val irisRot = theta + timeSec * 0.35
                         val irisBlades = abs(sin(irisRot * 6.0 + r * 0.3)).pow(2.2)
                         val ring1 = exp(-abs(r - 5.0) * 1.5) * irisBlades * 1.2
@@ -737,7 +778,11 @@ class GlyphVisualizerService : Service() {
                 val flash = if (kickFlash > 0.1f) exp(-r * 0.45) * kickFlash.toDouble() * 1.2 else 0.0
                 val vDropFull = max(vMeat, flash).coerceIn(0.0, 1.0)
 
-                val blended = (vCalm * (wCalm / sumW) + vBuildup * (wBld / sumW) + vDropFull * (wDrp / sumW)) * strobeDim
+                var blended = (vCalm * (wCalm / sumW) + vBuildup * (wBld / sumW) + vDropFull * (wDrp / sumW)) * strobeDim
+
+                // Перекрываем всё это "Черной дырой", если она сейчас активна
+                blended = max(blended, singularityDot)
+
                 val gamma = 2.0 + t * 1.1
                 val bright = (blended.pow(gamma) * 255.0).toInt().coerceIn(0, 255)
 
@@ -749,10 +794,10 @@ class GlyphVisualizerService : Service() {
             glyphManager?.setAppMatrixFrame(frameBuffer)
 
             val activeName = when {
-                testModeOverride == 1 -> "[ТЕСТ СПОКОЙНЫЙ] " + (if (calmPatternType == 0) "Дзен-Туннель" else if (calmPatternType == 1) "Шёлковая Аврора" else "Кибер-Затвор")
+                testModeOverride == 1 -> "[ТЕСТ СПОКОЙНЫЙ] " + (if (calmPatternType == 0) "Дзен-Туннель" else if (calmPatternType == 1) "Лунное Гало" else "Кибер-Затвор")
                 testModeOverride == 2 -> "[ТЕСТ ДРОП] " + patternNames.getOrElse(currentDropPattern) { "Дроп" }
                 isManualPatternOverride -> "[РУЧНОЙ] " + patternNames.getOrElse(currentDropPattern) { "Узор" }
-                t < 0.35f -> "СПОКОЙНЫЙ [$detectedGenreName]: " + (if (calmPatternType == 0) "Дзен-Туннель" else if (calmPatternType == 1) "Шёлковая Аврора" else "Кибер-Затвор")
+                t < 0.35f -> "СПОКОЙНЫЙ [$detectedGenreName]: " + (if (calmPatternType == 0) "Дзен-Туннель" else if (calmPatternType == 1) "Лунное Гало" else "Кибер-Затвор")
                 t < 0.75f -> "РАЗГОН: Зарядка Рельсотрона"
                 else -> "ДРОП [$detectedGenreName]: " + patternNames.getOrElse(currentDropPattern) { "Дроп" }
             }
@@ -763,7 +808,6 @@ class GlyphVisualizerService : Service() {
         }
     }
 
-    // 9 СИСТЕМ ДРОПА С УЛУЧШЕННЫМ ПУЛЬСАРОМ, ОКТАЭДРОМ И ГЕКСА-ЩИТОМ
     private fun evaluateDynamicDropVisual(
         patternId: Int,
         dx: Double,
@@ -801,19 +845,14 @@ class GlyphVisualizerService : Service() {
                 val hexMir = abs((rotTheta % hexSector) - (hexSector / 2.0))
                 val hexDist = r * cos(hexMir)
 
-                // В дабстепе сжатие доходит почти до самого ядра (r ≈ 3.5), а на бочке爆взрывается наружу
                 val dubstepSqueeze = (growlIntensity * 1.6 + hNorm * 0.8).coerceIn(0.0, 4.2)
                 val kickExplosion = kickFlash * 2.2 + bNorm * 1.4
 
-                // Внешний контур: колоссальный диапазон от 6.5 до 12.0
                 val outerRadius = (11.5 - dubstepSqueeze + kickExplosion).coerceIn(6.5, 12.0)
-
-                // Средние плиты: сжимаются до r ≈ 3.8 на тяжелом рыке баса
                 val midBaseRadius = (6.5 - dubstepSqueeze * 0.75 + kickExplosion * 0.8).coerceIn(3.8, 8.5)
                 val outerOverlap = max(0.0, 1.4 - (outerRadius - midBaseRadius))
                 val platesRadius = midBaseRadius - outerOverlap * 0.7
 
-                // Внутреннее ядро: компактное, защищенное от плит
                 val coreBaseRadius = 1.8 + (bNorm * 0.6 + kickFlash * 0.8)
                 val midOverlap = max(0.0, 1.2 - (platesRadius - coreBaseRadius))
                 val coreRadius = (coreBaseRadius - midOverlap * 0.5).coerceIn(1.1, 2.5)
@@ -833,36 +872,31 @@ class GlyphVisualizerService : Service() {
                 max(bastion, centerLightDot).coerceIn(0.0, 1.0)
             }
 
-            // [2] АКУСТИЧЕСКИЙ ПУЛЬСАР: КОЛЛИМИРОВАННЫЕ ДЖЕТЫ + ДИСКИ МАХА + 3D АККРЕЦИЯ
+            // [2] АКУСТИЧЕСКИЙ ПУЛЬСАР -> КИНЕМАТИЧЕСКИЙ РАЗРЕЗ СФЕРЫ
             2 -> {
-                val pulsarSpin = shurikenContinuousAngle * 1.1
-                val rotTheta = theta + pulsarSpin
+                // Угол разреза меняется со временем, но резко
+                val slashAngle = floor(timeSec * 1.5) * (PI / 3.0) + (polyAngle3D * 0.1)
+                val nx = -sin(slashAngle)
+                val ny = cos(slashAngle)
 
-                // 1. КОЛЛИМИРОВАННЫЕ РЕЛЯТИВИСТСКИЕ ДЖЕТЫ (Узкий пучок с коническим расширением)
-                val dPerp = r * abs(sin(rotTheta)) // Дистанция поперек луча
-                val dParallel = r * abs(cos(rotTheta)) // Дистанция вдоль луча
-                val jetBeamWidth = 0.32 + (dParallel * 0.07) // Тонкий луч в центре, легкий конус наружу
-                val jetBeam = exp(-dPerp / jetBeamWidth) * (1.25 + kickFlash * 0.95)
+                // На какой стороне от разреза находится пиксель
+                val distToCut = dx * nx + dy * ny
+                val side = if (distToCut > 0) 1.0 else -1.0
 
-                // Ударные узлы плазмы (диски Маха, несущиеся вдоль лучей)
-                val machKnots = abs(sin(dParallel * 1.8 - timeSec * 16.0)).pow(3.5) * 0.55
-                val jetPlume = (jetBeam + machKnots * jetBeam).coerceIn(0.0, 1.8)
+                // Полусферы разлетаются при ударе бочки!
+                val splitOffset = kickFlash.pow(1.5f) * 3.5
+                val sphereDx = dx - (nx * side * splitOffset)
+                val sphereDy = dy - (ny * side * splitOffset)
+                val sphereR = hypot(sphereDx, sphereDy)
 
-                // 2. АККРЕЦИОННЫЙ ДИСК В 3D ПЕРСПЕКТИВЕ С ДОПЛЕРОВСКИМ СВЕЧЕНИЕМ
-                // 3D наклон диска на 45 градусов
-                val diskX = dx * cos(PI / 4.0) - dy * sin(PI / 4.0)
-                val diskY = (dx * sin(PI / 4.0) + dy * cos(PI / 4.0)) * 1.75
-                val diskR = hypot(diskX, diskY)
-                val accretionRing = exp(-abs(diskR - 6.2) * 1.6) * (0.9 + bNorm * 0.55)
-                // Доплеровское усиление: набегающая сторона горит ярче
-                val doppler = sin(atan2(diskY, diskX) - pulsarSpin * 2.0) * 0.35 + 0.65
-                val accretionFinal = accretionRing * doppler
+                // Рисуем текстурированную сферу
+                val texture = 0.6 + 0.4 * sin(sphereR * 2.5 - timeSec * 6.0)
+                val sphere = if (sphereR <= 6.5) texture * (0.5 + bNorm * 0.5) else 0.0
 
-                // 3. СВЕРХПЛОТНОЕ ЯДРО НЕЙТРОННОЙ ЗВЕЗДЫ
-                val starCore = exp(-r * 1.6) * (1.3 + bNorm * 0.8 + kickFlash * 0.9)
-                val magnetosphere = exp(-r * 0.85) * abs(sin(timeSec * 10.0)).pow(6.0) * 0.45
+                // Сам луч разреза (сделали толще: 1.1 вместо 1.5)
+                val beam = exp(-abs(distToCut) * 1.1) * (kickFlash * 1.8 + 0.2) * (if (r < 11.0) 1.0 else 0.0)
 
-                max(max(jetPlume, accretionFinal), max(starCore, magnetosphere)).coerceIn(0.0, 1.0)
+                max(sphere, beam).coerceIn(0.0, 1.0)
             }
 
             // [3] КИБЕР-РЕАКТОР: КРАЙ -> ТОЧКИ 1 -> ТОЛСТЫЙ ОБРУЧ -> ТОЧКИ 2 -> ЯДРО
@@ -918,7 +952,6 @@ class GlyphVisualizerService : Service() {
             5 -> {
                 var maxEdgeVal = 0.0
 
-                // Расчет 12 ребер с Z-глубиной
                 for (edge in octEdges) {
                     val idx1 = edge.first; val idx2 = edge.second
                     val d = distToSegment(dx, dy, projOctX[idx1], projOctY[idx1], projOctX[idx2], projOctY[idx2])
@@ -928,13 +961,11 @@ class GlyphVisualizerService : Service() {
                     if (edgeLine > maxEdgeVal) maxEdgeVal = edgeLine
                 }
 
-                // 3 внутренние квантовые оси координат сквозь центр (X, Y, Z)
                 val axisX = distToSegment(dx, dy, projOctX[2], projOctY[2], projOctX[3], projOctY[3])
                 val axisY = distToSegment(dx, dy, projOctX[0], projOctY[0], projOctX[1], projOctY[1])
                 val axisZ = distToSegment(dx, dy, projOctX[4], projOctY[4], projOctX[5], projOctY[5])
                 val internalAxes = (exp(-axisX * 2.2) + exp(-axisY * 2.2) + exp(-axisZ * 2.2)) * 0.28
 
-                // 6 вершинных узлов с бликами
                 var maxNodeVal = 0.0
                 for (i in 0 until 6) {
                     val distNode = hypot(dx - projOctX[i], dy - projOctY[i])
@@ -943,7 +974,6 @@ class GlyphVisualizerService : Service() {
                     if (nodeGlow > maxNodeVal) maxNodeVal = nodeGlow
                 }
 
-                // ФОН: ДВОЙНАЯ ДИАГОНАЛЬНАЯ ИЗОМЕТРИЧЕСКАЯ ГИПЕР-СЕТКА
                 val diag1 = sin((dx + dy) * 1.6 + timeSec * 2.2)
                 val diag2 = cos((dx - dy) * 1.6 - timeSec * 1.8)
                 val dualDiagonalGrid = abs(diag1 * diag2).pow(4.0) * (0.24 + mNorm * 0.16)
@@ -1001,38 +1031,73 @@ class GlyphVisualizerService : Service() {
                 max(hyperOrigami, corePulsar) + (bioVeins + bioPulse).coerceIn(0.0, 1.0)
             }
 
-            // [8] ЧЁТКАЯ TEAROUT-ПИЛА: HD ДИСК
+            // [8] ЧЁТКАЯ TEAROUT-ПИЛА: HD ДИСК (Исправленная геометрия)
+            8 -> {
+                val gTheta = atan2(dy, dx) + tearoutSawAngle
+                val tearRage = (bNorm * 0.7 + growlIntensity * 0.5).coerceIn(0.0, 1.8)
+
+                // 6 четких, агрессивных зубьев
+                val teethBase = abs(sin(gTheta * 3.0)).pow(3.0)
+                val tooth = teethBase * (1.2 + tearRage * 2.0)
+                val bladeRadius = 5.5 + tooth + (kickFlash * 0.8)
+
+                // Тонкое, но яркое лезвие (коэффициент 2.5 делает линию тонкой)
+                val sawBlade = exp(-abs(r - bladeRadius) * 2.5) * (1.1 + kickFlash * 0.6)
+
+                // Механическое кольцо в центре (ось)
+                val coreDist = abs(r - 2.5)
+                val coreRing = exp(-coreDist * 3.0) * (0.8 + mNorm * 0.6)
+
+                // Челюсти только на жестком рычании
+                val jaws = exp(-abs(r - (9.5 - kickFlash)) * 2.5) * abs(sin(gTheta * 2.0)).pow(5.0) * growlIntensity
+
+                max(sawBlade, max(coreRing, jaws)).coerceIn(0.0, 1.0)
+            }
+
+            // [9] ИСТИННЫЙ КАЛЕЙДОСКОП (Неразрывный Полярный Морфинг а-ля Yabba Dabs)
             else -> {
-                val isGlitchStripe = abs(sin(dy * 1.6 + timeSec * 14.0)) > 0.72
-                val glitchOffset = if (isGlitchStripe && (growlIntensity > 0.9f || kickFlash > 0.25f)) {
-                    sin(dy * 3.5 + timeSec * 22.0) * (0.55 + kickFlash * 0.4)
-                } else 0.0
+                val nPoints = 8.0 // 8 лучей мандалы/снежинки
+                // Базовое вращение, которое дергается (Whiplash) вместе с физикой
+                val rotTheta = theta + shurikenContinuousAngle * 0.6
 
-                val gDx = dx + glitchOffset
-                val gR = hypot(gDx, dy)
-                val gTheta = atan2(dy, gDx) + tearoutSawAngle
+                // ФАЗА МОРФИНГА: плавно перетекает от 0.0 до 1.0
+                // 0.0 = Мягкий Лотос (Цветок)
+                // 1.0 = Острая жесткая Снежинка/Звезда
+                val morphState = (sin(timeSec * 2.0 + growlIntensity * 0.5).pow(2)).coerceIn(0.0, 1.0)
 
-                val tearRage = (bNorm * 0.7 + growlIntensity * 0.55 + kickFlash * 0.9).coerceIn(0.0, 1.8)
+                // СУПЕРФОРМУЛА: Гарантирует единую, замкнутую и симметричную линию
+                val lobeBase = cos(rotTheta * (nPoints / 2.0))
+                val lobeDist = abs(lobeBase)
 
-                val toothWave = sin(gTheta * 8.0 + cos(gTheta * 8.0) * 0.6)
-                val toothHook = (toothWave * 0.5 + 0.5).pow(1.6) * (1.6 + tearRage * 2.2)
-                val bladeRadius = 5.2 + toothHook + (kickFlash * 1.2)
-                val sawBlade = exp(-abs(gR - bladeRadius) * (1.7 - tearRage * 0.2)) * (1.25 + kickFlash * 0.7)
+                // Меняем форму "зубьев" в зависимости от морфинга
+                val sharpness = 1.0 + (morphState * 5.0)
+                val wave = lobeDist.pow(sharpness)
 
-                val jawTheta = gTheta * 2.0
-                val jawBite = sin(timeSec * 5.0 + bNorm * 2.5) * 1.1
-                val jawRadius = 10.8 - (kickFlash * 1.8) + jawBite
-                val jawJaws = exp(-abs(gR - jawRadius) * 2.0) * abs(sin(jawTheta)).pow(4.0) * (1.0 + growlIntensity * 0.45)
+                // Внутренний и внешний размах лучей
+                val rMin = 3.5 + bNorm
+                val rMax = 7.0 + (bNorm * 1.5) + (morphState * 3.5) + (kickFlash * 2.0)
 
-                val sparkGrit = if (gR in 4.5..11.2 && tearRage > 0.4) {
-                    abs(sin(gDx * 3.2 + dy * 3.2 + timeSec * 16.0)).pow(5.0) * (0.32 * tearRage)
-                } else 0.0
+                val targetR = rMin + (rMax - rMin) * wave
 
-                val coreNut = exp(-gR * 1.3) * (0.95 + kickFlash * 0.8)
-                val coreSlits = exp(-abs(sin(gTheta * 4.0)) * 2.2) * (1.0 - gR / 3.2).coerceAtLeast(0.0) * 0.7
+                // Рисуем ТОЛСТУЮ неразрывную линию контура.
+                // Используем линейный градиент, чтобы на 25x25 она не била на пиксели!
+                val thickness = 1.6 + (kickFlash * 0.6) // Линия жирнеет на басах
+                val dist = abs(r - targetR)
+                val outline = (1.0 - (dist / thickness)).coerceIn(0.0, 1.0)
 
-                val bladeRig = max(sawBlade, jawJaws)
-                max(bladeRig, coreNut + coreSlits) + sparkGrit.coerceIn(0.0, 1.0)
+                // Ядро (мягкое свечение внутри снежинки)
+                val core = if (r < targetR - 0.5) (0.2 + bNorm * 0.15) * (1.0 - r / targetR) else 0.0
+
+                // ОСКОЛКИ: Те самые точки, которые вылетают за пределы снежинки и втягиваются обратно
+                val shardRadius = 11.5 - (kickFlash * 4.0) // На удар бочки летят к центру
+                // Выделяем оси, на которых должны быть осколки
+                val axisWave = abs(sin(rotTheta * nPoints))
+                val isOnAxis = if (axisWave < 0.2) (1.0 - axisWave * 5.0) else 0.0
+                val shardDistDelta = abs(r - shardRadius)
+                val shards = if (shardDistDelta < 2.0) isOnAxis * (1.0 - shardDistDelta / 2.0) * (0.8 + hNorm) else 0.0
+
+                // Финальный микс: Жирная снежинка + свечение внутри + летящие осколки снаружи
+                max(outline * (1.2 + kickFlash) + core, shards).coerceIn(0.0, 1.0)
             }
         }
     }
