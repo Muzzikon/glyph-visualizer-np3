@@ -30,6 +30,7 @@ class MainActivity : AppCompatActivity() {
     private var isRunning = false
     private var isSilentDemoMode = false
     private var testModeState = 0
+    private var trainingGenreContext: Int = 2 // 0: Chill, 1: Rock/Metal, 2: Dubstep/Tearout
 
     private lateinit var btnToggle: Button
     private lateinit var btnSilentMode: Button
@@ -87,12 +88,17 @@ class MainActivity : AppCompatActivity() {
         loadProfileInfo()
 
         btnToggle.setOnClickListener { checkPermissionsAndToggle() }
-        btnPickFiles.setOnClickListener { pickAudioFilesLauncher.launch(arrayOf("audio/*")) }
-        btnPickFolder.setOnClickListener { pickFolderLauncher.launch(null) }
+        btnPickFiles.setOnClickListener {
+            showTrainingGenreDialog { pickAudioFilesLauncher.launch(arrayOf("audio/*")) }
+        }
+        btnPickFolder.setOnClickListener {
+            showTrainingGenreDialog { pickFolderLauncher.launch(null) }
+        }
 
         btnSilentMode.visibility = View.GONE
 
         btnSelectApps.setOnClickListener { showSupportedAppsDialog() }
+
         glyphPreview.setOnClickListener {
             controlsPanel.visibility = if (controlsPanel.visibility == View.VISIBLE) View.GONE else View.VISIBLE
         }
@@ -180,6 +186,25 @@ class MainActivity : AppCompatActivity() {
             }.setNegativeButton("Cancel", null).show()
     }
 
+    private fun showTrainingGenreDialog(onProceed: () -> Unit) {
+        val genres = arrayOf(
+            "🌸 СПОКОЙНАЯ (Chill / Ambient / Lo-Fi)",
+            "🎸 ГИБРИДНАЯ (Live Drums / Metal / Trap)",
+            "💀 АГРЕССИВНАЯ (Tearout / Riddim / Bass)"
+        )
+        var selected = trainingGenreContext
+
+        AlertDialog.Builder(this)
+            .setTitle("Обучение Матрицы. Выберите тип музыки:")
+            .setSingleChoiceItems(genres, selected) { _, which -> selected = which }
+            .setPositiveButton("Загрузить (Analyze)") { _, _ ->
+                trainingGenreContext = selected
+                onProceed()
+            }
+            .setNegativeButton("Отмена", null)
+            .show()
+    }
+
     private fun checkNotificationListenerPermission() {
         val enabledListeners = Settings.Secure.getString(contentResolver, "enabled_notification_listeners")
         if (enabledListeners == null || !enabledListeners.contains(packageName)) {
@@ -238,48 +263,70 @@ class MainActivity : AppCompatActivity() {
 
     private fun processTrackUrisStreamingSafe(uris: List<Uri>) {
         btnPickFiles.isEnabled = false; btnPickFolder.isEnabled = false
+        val prefix = arrayOf("chill_", "band_", "edm_")[trainingGenreContext]
+        val labelName = arrayOf("CHILL", "ROCK", "TEAROUT")[trainingGenreContext]
+
         thread {
             val prefs = getSharedPreferences("glyph_profile", Context.MODE_PRIVATE)
-            val subPeakStat = WelfordAccumulator().apply { count = prefs.getInt("trained_tracks_count", 0).toDouble(); mean = prefs.getFloat("stat_mean_peak", 28f).toDouble(); m2 = prefs.getFloat("stat_m2_peak", 64f).toDouble() }
-            val subFloorStat = WelfordAccumulator().apply { count = subPeakStat.count; mean = prefs.getFloat("stat_mean_floor", 2.2f).toDouble(); m2 = prefs.getFloat("stat_m2_floor", 4.0f).toDouble() }
-            val growlStat = WelfordAccumulator().apply { count = subPeakStat.count; mean = prefs.getFloat("stat_mean_growl", 1.0f).toDouble(); m2 = prefs.getFloat("stat_m2_growl", 0.5f).toDouble() }
+            val subPeakStat = WelfordAccumulator().apply {
+                count = prefs.getInt("${prefix}count", 0).toDouble()
+                mean = prefs.getFloat("${prefix}mean_p", if(prefix=="chill_") 14f else 28f).toDouble()
+                m2 = prefs.getFloat("${prefix}m2_p", 64f).toDouble()
+            }
+            val subFloorStat = WelfordAccumulator().apply {
+                count = subPeakStat.count
+                mean = prefs.getFloat("${prefix}mean_f", if(prefix=="chill_") 1.0f else 2.2f).toDouble()
+                m2 = prefs.getFloat("${prefix}m2_f", 4.0f).toDouble()
+            }
+            val growlStat = WelfordAccumulator().apply {
+                count = subPeakStat.count
+                mean = prefs.getFloat("${prefix}mean_g", if(prefix=="edm_") 1.4f else 0.8f).toDouble()
+                m2 = prefs.getFloat("${prefix}m2_g", 0.5f).toDouble()
+            }
+
             val checkpointsFractions = doubleArrayOf(0.05, 0.12, 0.18, 0.25, 0.32, 0.40, 0.48, 0.55, 0.62, 0.70, 0.78, 0.84, 0.90, 0.94, 0.97)
             var successfullyAdded = 0
 
             for ((index, uri) in uris.withIndex()) {
-                runOnUiThread { trainingProgressText.text = "Spectral Analysis: ${index + 1} / ${uris.size} (Success: $successfullyAdded)..." }
+                runOnUiThread { trainingProgressText.text = "Analysis [$labelName]: ${index + 1} / ${uris.size} (Parsed: $successfullyAdded)..." }
                 val profile = analyzeTrackSpectralProfile(uri, checkpointsFractions)
                 if (profile != null) {
                     subPeakStat.update(profile.peakSub.toDouble())
                     subFloorStat.update(profile.floorSub.toDouble())
                     growlStat.update(profile.growlRatio.toDouble())
                     successfullyAdded++
-                    if (successfullyAdded % 25 == 0) saveCalibrationProfile(prefs, subPeakStat, subFloorStat, growlStat)
+                    if (successfullyAdded % 20 == 0) saveCalibrationProfile(prefs, prefix, subPeakStat, subFloorStat, growlStat)
                 }
             }
 
-            saveCalibrationProfile(prefs, subPeakStat, subFloorStat, growlStat)
+            saveCalibrationProfile(prefs, prefix, subPeakStat, subFloorStat, growlStat)
+            val totalAllGenres = prefs.getInt("chill_count",0) + prefs.getInt("band_count",0) + prefs.getInt("edm_count",0)
+            prefs.edit().putInt("trained_tracks_count", totalAllGenres).apply()
 
             runOnUiThread {
                 btnPickFiles.isEnabled = true; btnPickFolder.isEnabled = true
-                trainingProgressText.text = "Training Complete! Added: $successfullyAdded (Total: ${subPeakStat.count.toInt()})"
+                trainingProgressText.text = "Тренировка [$labelName] окончена. Успешно: $successfullyAdded треков"
                 loadProfileInfo()
-                Toast.makeText(this@MainActivity, "Knowledge Base: ${subPeakStat.count.toInt()} tracks!", Toast.LENGTH_SHORT).show()
-                if (isRunning) startService(Intent(this@MainActivity, GlyphVisualizerService::class.java).apply { putExtra("ACTION", "RELOAD_PROFILE") })
+                Toast.makeText(this@MainActivity, "Сетка обновлена: Тотально $totalAllGenres треков", Toast.LENGTH_SHORT).show()
+                if (isRunning) sendServiceAction("RELOAD_PROFILE")
             }
         }
     }
 
-    private fun saveCalibrationProfile(prefs: android.content.SharedPreferences, peakStat: WelfordAccumulator, floorStat: WelfordAccumulator, growlStat: WelfordAccumulator) {
-        val robustPeak = (peakStat.mean + 1.2 * peakStat.getStdDev()).toFloat().coerceIn(22f, 75f)
-        val robustFloor = (floorStat.mean - 0.4 * floorStat.getStdDev()).toFloat().coerceIn(1.0f, 4.0f)
-        val robustGrowl = growlStat.mean.toFloat().coerceIn(0.7f, 2.2f)
+    private fun saveCalibrationProfile(prefs: android.content.SharedPreferences, prefix: String, peak: WelfordAccumulator, floor: WelfordAccumulator, growl: WelfordAccumulator) {
+        // Жесткая адаптация: если обучали Амбиенту - не натягиваем искусственно нижнюю планку!
+        val peakClampRange = if (prefix == "chill_") 8f..35f else 22f..80f
 
-        prefs.edit().putBoolean("is_trained", true).putInt("trained_tracks_count", peakStat.count.toInt())
-            .putFloat("stat_mean_peak", peakStat.mean.toFloat()).putFloat("stat_m2_peak", peakStat.m2.toFloat())
-            .putFloat("stat_mean_floor", floorStat.mean.toFloat()).putFloat("stat_m2_floor", floorStat.m2.toFloat())
-            .putFloat("stat_mean_growl", growlStat.mean.toFloat()).putFloat("stat_m2_growl", growlStat.m2.toFloat())
-            .putFloat("peak_bass", robustPeak).putFloat("floor_bass", robustFloor).putFloat("growl_bias", robustGrowl).apply()
+        val robustPeak = (peak.mean + 1.2 * peak.getStdDev()).toFloat().coerceIn(peakClampRange)
+        val robustFloor = (floor.mean - 0.4 * floor.getStdDev()).toFloat().coerceIn(0.5f, 5.0f)
+        val robustGrowl = growl.mean.toFloat().coerceIn(0.4f, 2.5f)
+
+        prefs.edit().putBoolean("is_trained", true).putInt("${prefix}count", peak.count.toInt())
+            .putFloat("${prefix}mean_p", peak.mean.toFloat()).putFloat("${prefix}m2_p", peak.m2.toFloat())
+            .putFloat("${prefix}mean_f", floor.mean.toFloat()).putFloat("${prefix}m2_f", floor.m2.toFloat())
+            .putFloat("${prefix}mean_g", growl.mean.toFloat()).putFloat("${prefix}m2_g", growl.m2.toFloat())
+            .putFloat("${prefix}peak_bass", robustPeak).putFloat("${prefix}floor_bass", robustFloor)
+            .putFloat("${prefix}growl_bias", robustGrowl).apply()
     }
 
     private fun analyzeTrackSpectralProfile(uri: Uri, checkpoints: DoubleArray): TrackSpectralProfile? {
@@ -354,8 +401,8 @@ class MainActivity : AppCompatActivity() {
                 }
             }
 
-            if (maxSubEnergy in 5f..160f && totalFftFrames > 0) {
-                return TrackSpectralProfile(maxSubEnergy, if (minSubEnergy < 900f) minSubEnergy else 2.0f, ((sumMidEnergy / totalFftFrames).toFloat() / ((sumSubEnergy / totalFftFrames).toFloat() + 0.1f)).coerceIn(0.6f, 2.2f))
+            if (maxSubEnergy in 1.2f..160f && totalFftFrames > 0) {
+                return TrackSpectralProfile(maxSubEnergy, if (minSubEnergy < 900f) minSubEnergy else 1.0f, ((sumMidEnergy / totalFftFrames).toFloat() / ((sumSubEnergy / totalFftFrames).toFloat() + 0.1f)).coerceIn(0.4f, 2.8f))
             }
         } catch (e: Exception) { Log.e("GlyphTraining", "Track Error $uri: ${e.message}"); return null }
         finally { try { codec?.stop() } catch (_: Exception) {}; try { codec?.release() } catch (_: Exception) {}; try { extractor?.release() } catch (_: Exception) {} }
@@ -397,12 +444,16 @@ class MainActivity : AppCompatActivity() {
 
     private fun loadProfileInfo() {
         val prefs = getSharedPreferences("glyph_profile", Context.MODE_PRIVATE)
-        val count = prefs.getInt("trained_tracks_count", 0)
-        if (count > 0) {
-            statusText.text = "Knowledge Base: $count tracks [Peak: ${prefs.getFloat("peak_bass", 28f).toInt()} | Growl: ${String.format("%.2f", prefs.getFloat("growl_bias", 1.0f))}]"
-            statusText.setTextColor(getColor(android.R.color.holo_green_light))
+        val cC = prefs.getInt("chill_count", 0)
+        val bC = prefs.getInt("band_count", 0)
+        val eC = prefs.getInt("edm_count", 0)
+        val total = cC + bC + eC
+
+        if (total > 0) {
+            statusText.text = "Matrix Knowledge Base\nCHILL: $cC | BAND: $bC | TEAROUT: $eC (Общее: $total)"
+            statusText.setTextColor(getColor(android.R.color.holo_blue_light))
         } else {
-            statusText.text = "Knowledge Base: 0 tracks (Tap FILES to train)"
+            statusText.text = "База Обучения пуста. (0)\nИспользуйте Files или Folder."
             statusText.setTextColor(getColor(android.R.color.darker_gray))
         }
     }
