@@ -6,7 +6,6 @@ import android.graphics.Color
 import android.graphics.Paint
 import android.util.AttributeSet
 import android.view.View
-import kotlin.math.hypot
 import kotlin.math.min
 
 class GlyphPreviewView @JvmOverloads constructor(
@@ -17,6 +16,12 @@ class GlyphPreviewView @JvmOverloads constructor(
 
     private val matrixSide = 25
     private val totalLeds = matrixSide * matrixSide
+    private val unlitColor=Color.rgb(18,18,18)
+    private val visibleLeds=IntArray(totalLeds).let { all ->
+        var count=0
+        for(y in 0..24) for(x in 0..24) if((x-12)*(x-12)+(y-12)*(y-12)<=156.25) all[count++]=y*25+x
+        all.copyOf(count)
+    }
     private val displayBuffer = IntArray(totalLeds)
     private var hasData = false
 
@@ -51,26 +56,20 @@ class GlyphPreviewView @JvmOverloads constructor(
 
         val cellStep = size / matrixSide
         val dotRadius = cellStep * 0.38f
-        val centerCoord = 12f
 
-        for (y in 0 until matrixSide) {
-            for (x in 0 until matrixSide) {
-                val dist = hypot(x - centerCoord, y - centerCoord)
-                if (dist > 12.5f) continue
-
-                val idx = y * matrixSide + x
+        for (idx in visibleLeds) {
+                val x=idx%matrixSide;val y=idx/matrixSide
                 val bright = if (hasData) displayBuffer[idx].coerceIn(0, 255) else 0
 
                 if (bright > 6) {
                     ledPaint.color = Color.rgb(bright, bright, bright)
                 } else {
-                    ledPaint.color = Color.parseColor("#121212")
+                    ledPaint.color = unlitColor
                 }
 
                 val cx = startX + x * cellStep + cellStep / 2f
                 val cy = startY + y * cellStep + cellStep / 2f
                 canvas.drawCircle(cx, cy, dotRadius, ledPaint)
-            }
         }
     }
 }

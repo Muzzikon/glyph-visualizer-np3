@@ -1,14 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- Доступ к системному звуку для анализа частот (FFT) -->
+    <!--  Доступ к системному звуку для анализа частот (FFT)  -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
 
-    <!-- Разрешение от Nothing для управления Glyph Matrix -->
+    <!--  Разрешение от Nothing для управления Glyph Matrix  -->
     <uses-permission android:name="com.nothing.ketchum.permission.ENABLE" />
 
-    <!-- Фоновая работа в кармане / с выключенным экраном -->
+    <!--  Фоновая работа в кармане / с выключенным экраном  -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
@@ -16,8 +16,18 @@
     <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
 
-    <!-- Разрешение видеть все установленные плееры и программы на устройстве -->
-    <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" />
+    <!--  Белый список плееров (безопасный запрос для Android 11+)  -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LAUNCHER" />
+        </intent>
+        <intent>
+            <action android:name="android.media.browse.MediaBrowserService" />
+        </intent>
+    </queries>
+
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
 
     <application
         android:allowBackup="true"
@@ -27,26 +37,26 @@
         android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
-        android:theme="@style/Theme.GlyphVisualizer">
+        android:theme="@style/Theme.GlyphMusic">
 
-        <!-- Ключ разработчика Nothing (для Android 16 достаточно заглушки "test") -->
+        <!--  Ключ разработчика Nothing (для Android 16 достаточно заглушки "test")  -->
         <meta-data
             android:name="NothingKey"
             android:value="test" />
 
-        <!-- Главная служба визуализатора (работает в кармане) -->
+        <!--  Главная служба визуализатора (работает в кармане)  -->
         <service
             android:name=".GlyphVisualizerService"
             android:enabled="true"
             android:exported="false"
             android:foregroundServiceType="microphone" />
 
-        <!-- Слушатель активных плееров для фильтрации приложений -->
+        <!--  Слушатель активных плееров для фильтрации приложений  -->
         <service
             android:name=".MediaNotificationListener"
+            android:exported="true"
             android:label="Glyph Media Tracker"
-            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE"
-            android:exported="true">
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
             <intent-filter>
                 <action android:name="android.service.notification.NotificationListenerService" />
             </intent-filter>
@@ -61,6 +71,15 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <service
+            android:name="com.example.glyphvisualizer.TrackAnalysisService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
+
+        <receiver
+            android:name="com.example.glyphvisualizer.AnalysisWakeReceiver"
+            android:exported="false" />
     </application>
 
 </manifest>

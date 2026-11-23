@@ -1,4 +1,4 @@
-package com.example.glyphvisualizer
+package com.example.glyphmusic
 
 import org.junit.Test
 

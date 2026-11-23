@@ -22,6 +22,6 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "GlyphVisualizer"
+rootProject.name = "GlyphMusic"
 include(":app")
  
